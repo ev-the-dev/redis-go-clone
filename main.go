@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strings"
@@ -36,39 +38,45 @@ func handleConnection(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 
 	for {
-		line, err := reader.ReadString('\n')
+		val, err := resp.Parse(reader)
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				fmt.Println("Client disconnected.")
+				return
+			}
 			fmt.Printf("Error reading client input::: %v\n", err)
-			return
+			continue
 		}
 
-		line = strings.TrimSpace(line)
-		fmt.Printf("LINE: %s\n", line)
-		cmd, arg := parseCmdArgs(line)
+		if val.Type != resp.Array || len(val.Array) <= 0 {
+			conn.Write([]byte(resp.EncodeSimpleErr("Expected command array")))
+			continue
+		}
 
-		fmt.Printf("CMD: %s\n", cmd)
-		fmt.Printf("ARG: %s\n", arg)
+		cmdVal := val.Array[0]
+		if cmdVal.Type != resp.BulkString {
+			conn.Write([]byte(resp.EncodeSimpleErr("Command must be bulk string type")))
+			continue
+		}
 
-		switch cmd {
+		switch strings.ToUpper(cmdVal.String) {
 		case "PING":
 			conn.Write([]byte("+PONG\r\n"))
 		case "ECHO":
-			if len(arg) < 1 {
-				conn.Write([]byte(resp.EncodeSimpleErr("missing argument for ECHO")))
-			} else {
-				conn.Write([]byte(resp.EncodeBulkString(arg)))
+			if len(val.Array) != 2 {
+				conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `ECHO` command")))
+				continue
 			}
+
+			argVal := val.Array[1]
+			if argVal.Type != resp.BulkString {
+				conn.Write([]byte(resp.EncodeSimpleErr("Argument to `ECHO` command must be bulk string type")))
+				continue
+			}
+
+			conn.Write([]byte(resp.EncodeBulkString(argVal.String)))
 		default:
-			conn.Write([]byte(resp.EncodeSimpleErr("unknown command")))
+			conn.Write([]byte(resp.EncodeSimpleErr("Unknown command")))
 		}
 	}
-}
-
-func parseCmdArgs(line string) (string, string) {
-	parts := strings.Split(line, " ")
-	if len(parts) == 0 {
-		return "", ""
-	}
-
-	return strings.ToUpper(parts[0]), strings.Join(parts[1:], " ")
 }
