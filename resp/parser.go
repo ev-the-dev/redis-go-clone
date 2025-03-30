@@ -29,7 +29,7 @@ func Parse(r *bufio.Reader) (*Value, error) {
 func parseArray(r *bufio.Reader) (*Value, error) {
 	arrLen, err := r.ReadString('\n')
 	if err != nil {
-		return nil, fmt.Errorf("%s array length: %w", ErrParsePrefix, err)
+		return nil, fmt.Errorf("%s array: length: %w", ErrParsePrefix, err)
 	}
 	arrLen = strings.TrimSpace(arrLen)
 	length, err := strconv.Atoi(arrLen)
@@ -48,7 +48,7 @@ func parseArray(r *bufio.Reader) (*Value, error) {
 	for range length {
 		val, err := Parse(r)
 		if err != nil {
-			return nil, fmt.Errorf("%s array recursion: %w", ErrParsePrefix, err)
+			return nil, fmt.Errorf("%s array: recursion: %w", ErrParsePrefix, err)
 		}
 
 		arr = append(arr, val)
@@ -64,12 +64,12 @@ func parseArray(r *bufio.Reader) (*Value, error) {
 func parseBulkString(r *bufio.Reader) (*Value, error) {
 	strLen, err := r.ReadString('\n')
 	if err != nil {
-		return nil, fmt.Errorf("%s bulk string length: %w", ErrParsePrefix, err)
+		return nil, fmt.Errorf("%s bulk string: length: %w", ErrParsePrefix, err)
 	}
 	strLen = strings.TrimSpace(strLen)
 	length, err := strconv.Atoi(strLen)
 	if err != nil {
-		return nil, fmt.Errorf("%s bulk string length to int: %w", ErrParsePrefix, err)
+		return nil, fmt.Errorf("%s bulk string: length to int: %w", ErrParsePrefix, err)
 	}
 
 	// For RESP2 Compatibility
@@ -85,7 +85,7 @@ func parseBulkString(r *bufio.Reader) (*Value, error) {
 	data := make([]byte, length)
 	_, err = io.ReadFull(r, data)
 	if err != nil {
-		return nil, fmt.Errorf("%s bulk string read full: %w", ErrParsePrefix, err)
+		return nil, fmt.Errorf("%s bulk string: read full: %w", ErrParsePrefix, err)
 	}
 
 	// Consume trailing CRLF so subsequent connection commands start "clean"
@@ -101,7 +101,7 @@ func parseBulkString(r *bufio.Reader) (*Value, error) {
 func parseSimpleString(r *bufio.Reader) (*Value, error) {
 	line, err := r.ReadString('\n')
 	if err != nil {
-		return nil, fmt.Errorf("%s simple string read: %w", ErrParsePrefix, err)
+		return nil, fmt.Errorf("%s simple string: read: %w", ErrParsePrefix, err)
 	}
 	return &Value{
 		Type:   SimpleString,
