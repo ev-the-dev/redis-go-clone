@@ -1,5 +1,13 @@
 package resp
 
+type ErrPrefix string
+
+const (
+	ErrEncodePrefix   ErrPrefix = "resp: encode:"
+	ErrParsePrefix    ErrPrefix = "resp: parse:"
+	ErrProtocolPrefix ErrPrefix = "resp: protocol:"
+)
+
 type RESPType uint
 
 const (
