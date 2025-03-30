@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -16,13 +18,59 @@ func main() {
 
 	fmt.Println("Listening on port: 6379")
 
-	conn, err := l.Accept()
 	for {
+		conn, err := l.Accept()
 		if err != nil {
-			fmt.Println("Error accepting connection: ", err.Error())
-			os.Exit(1)
+			fmt.Println("Error accepting connection::: ", err.Error())
+			continue
 		}
 
-		conn.Write([]byte("+PONG\r\n"))
+		go handleConnection(conn)
 	}
+}
+
+func encodeBulkString(arg string) string {
+	return fmt.Sprintf("$%d\r\n%s\r\n", len(arg), arg)
+}
+
+func handleConnection(conn net.Conn) {
+	defer conn.Close()
+	reader := bufio.NewReader(conn)
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Printf("Error reading client input::: %v\n", err)
+			return
+		}
+
+		line = strings.TrimSpace(line)
+		fmt.Printf("LINE: %s\n", line)
+		cmd, arg := parseCmdArgs(line)
+
+		fmt.Printf("CMD: %s\n", cmd)
+		fmt.Printf("ARG: %s\n", arg)
+
+		switch cmd {
+		case "PING":
+			conn.Write([]byte("+PONG\r\n"))
+		case "ECHO":
+			if len(arg) < 1 {
+				conn.Write([]byte("-ERR missing argument for ECHO\r\n"))
+			} else {
+				conn.Write([]byte(encodeBulkString(arg)))
+			}
+		default:
+			conn.Write([]byte("-ERR unknown command\r\n"))
+		}
+	}
+}
+
+func parseCmdArgs(line string) (string, string) {
+	parts := strings.Split(line, " ")
+	if len(parts) == 0 {
+		return "", ""
+	}
+
+	return strings.ToUpper(parts[0]), strings.Join(parts[1:], " ")
 }
