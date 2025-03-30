@@ -6,6 +6,8 @@ import (
 	"net"
 	"os"
 	"strings"
+
+	"github.com/ev-the-dev/redis-go-clone/resp"
 )
 
 func main() {
@@ -27,10 +29,6 @@ func main() {
 
 		go handleConnection(conn)
 	}
-}
-
-func encodeBulkString(arg string) string {
-	return fmt.Sprintf("$%d\r\n%s\r\n", len(arg), arg)
 }
 
 func handleConnection(conn net.Conn) {
@@ -56,12 +54,12 @@ func handleConnection(conn net.Conn) {
 			conn.Write([]byte("+PONG\r\n"))
 		case "ECHO":
 			if len(arg) < 1 {
-				conn.Write([]byte("-ERR missing argument for ECHO\r\n"))
+				conn.Write([]byte(resp.EncodeSimpleErr("missing argument for ECHO")))
 			} else {
-				conn.Write([]byte(encodeBulkString(arg)))
+				conn.Write([]byte(resp.EncodeBulkString(arg)))
 			}
 		default:
-			conn.Write([]byte("-ERR unknown command\r\n"))
+			conn.Write([]byte(resp.EncodeSimpleErr("unknown command")))
 		}
 	}
 }
