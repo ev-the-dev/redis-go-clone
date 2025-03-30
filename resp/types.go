@@ -15,7 +15,7 @@ const (
 
 type Value struct {
 	Type    RESPType
-	Array   []Value
+	Array   []*Value
 	Integer int
 	Length  int
 	String  string

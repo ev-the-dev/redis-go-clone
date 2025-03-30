@@ -19,9 +19,46 @@ func Parse(r *bufio.Reader) (*Value, error) {
 		return parseSimpleString(r)
 	case '$': // BulkString
 		return parseBulkString(r)
+	case '*': // Array
+		return parseArray(r)
 	default:
 		return nil, fmt.Errorf("Unknown RESP type::: %c", firstByte)
 	}
+}
+
+func parseArray(r *bufio.Reader) (*Value, error) {
+	arrLen, err := r.ReadString('\n')
+	if err != nil {
+		return nil, fmt.Errorf("Unable to read array length::: %w", err)
+	}
+	arrLen = strings.TrimSpace(arrLen)
+	length, err := strconv.Atoi(arrLen)
+
+	// NOTE: not entirely sure the distinction yet between
+	// a null array and zero-lengthed array from a RESP
+	// perspective.
+	if length <= 0 {
+		return &Value{
+			Type:   Array,
+			Length: length,
+		}, nil
+	}
+
+	arr := make([]*Value, 0, length)
+	for range length {
+		val, err := Parse(r)
+		if err != nil {
+			return nil, fmt.Errorf("Encountered error recursing over array::: %w", err)
+		}
+
+		arr = append(arr, val)
+	}
+
+	return &Value{
+		Type:   Array,
+		Array:  arr,
+		Length: length,
+	}, nil
 }
 
 func parseBulkString(r *bufio.Reader) (*Value, error) {
