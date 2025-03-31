@@ -1,6 +1,9 @@
 package store
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
 
 type Store struct {
 	data map[string]item
@@ -8,7 +11,8 @@ type Store struct {
 }
 
 type item struct {
-	value string
+	expiresAt time.Time
+	value     string
 }
 
 func New() *Store {
@@ -25,7 +29,11 @@ func (s *Store) Get(k string) (string, bool) {
 		return "", exists
 	}
 
-	return item.value, exists
+	if item.expiresAt.IsZero() || time.Now().Before(item.expiresAt) {
+		return item.value, exists
+	}
+	// TODO: if expired, cleanup store?
+	return "", false
 }
 
 func (s *Store) Set(k, v string) {

@@ -116,6 +116,16 @@ func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
+	// Check Options here
+	// Loop over len of `msg.Array` starting at i := 3?
+	// Logic should follow:
+	//	1. NX | XX:
+	//		a. No associated value
+	//	2. GET:
+	//		a. No associated value
+	//	3. EX | PX | EXAT | PXAT | KEEPTTL:
+	//		a. associated value after unless KEEPTTL
+
 	s.store.Set(key, val)
 	conn.Write([]byte(resp.EncodeSimpleString("OK")))
 	return
