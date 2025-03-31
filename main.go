@@ -10,30 +10,25 @@ import (
 	"strings"
 
 	"github.com/ev-the-dev/redis-go-clone/resp"
+	"github.com/ev-the-dev/redis-go-clone/store"
 )
 
 func main() {
+	s := NewServer()
+	s.Start()
+}
 
-	l, err := net.Listen("tcp", "0.0.0.0:6379")
-	if err != nil {
-		fmt.Printf("%s port: %v\n", ErrConnPrefix, err)
-		os.Exit(1)
-	}
+type Server struct {
+	store *store.Store
+}
 
-	fmt.Println("Listening on port: 6379")
-
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			fmt.Printf("%s client: %v\n", ErrConnPrefix, err.Error())
-			continue
-		}
-
-		go handleConnection(conn)
+func NewServer() *Server {
+	return &Server{
+		store: store.New(),
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
 
@@ -75,8 +70,38 @@ func handleConnection(conn net.Conn) {
 			}
 
 			conn.Write([]byte(resp.EncodeBulkString(argVal.String)))
+		// case "GET":
+		// case "SET":
+		// 	if len(val.Array) <= 2 {
+		// 		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `SET` command")))
+		// 		continue
+		// 	}
+		//
+		// 	keyVal := val.Array[1]
+		// 	valVal := val.Array[2]
+
 		default:
 			conn.Write([]byte(resp.EncodeSimpleErr("Unknown command")))
 		}
+	}
+}
+
+func (s *Server) Start() {
+	l, err := net.Listen("tcp", "0.0.0.0:6379")
+	if err != nil {
+		fmt.Printf("%s port: %v\n", ErrConnPrefix, err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Listening on port: 6379")
+
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Printf("%s client: %v\n", ErrConnPrefix, err.Error())
+			continue
+		}
+
+		go s.handleConnection(conn)
 	}
 }
