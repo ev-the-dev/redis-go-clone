@@ -16,7 +16,7 @@ func main() {
 
 	l, err := net.Listen("tcp", "0.0.0.0:6379")
 	if err != nil {
-		fmt.Println("Failed to bind to port 6379")
+		fmt.Printf("%s port: %v\n", ErrConnPrefix, err)
 		os.Exit(1)
 	}
 
@@ -25,7 +25,7 @@ func main() {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			fmt.Println("Error accepting connection::: ", err.Error())
+			fmt.Printf("%s client: %v\n", ErrConnPrefix, err.Error())
 			continue
 		}
 
@@ -44,7 +44,7 @@ func handleConnection(conn net.Conn) {
 				fmt.Println("Client disconnected.")
 				return
 			}
-			fmt.Printf("Error reading client input::: %v\n", err)
+			fmt.Printf("%s cmd: %v\n", ErrCmdPrefix, err)
 			continue
 		}
 
