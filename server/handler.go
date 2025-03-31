@@ -80,6 +80,6 @@ func (s *Server) handleSetCommand(conn net.Conn, val *resp.Value) {
 	// 	keyVal := val.Array[1]
 	// 	valVal := val.Array[2]
 
-	conn.Write([]byte(resp.EncodeSimpleErr("Not yet implemented.")))
+	conn.Write([]byte(resp.EncodeSimpleString("OK")))
 	return
 }

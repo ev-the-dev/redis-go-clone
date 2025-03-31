@@ -8,6 +8,8 @@ import "fmt"
 // i.e.
 // valid: "hello"
 // invalid: "+hello" -- unless '+' is meant as literal part of message.
+//
+// Although, perhaps that shouldn't be the concern of these functions.
 
 func EncodeBulkString(s string) string {
 	return fmt.Sprintf("$%d\r\n%s\r\n", len(s), s)
