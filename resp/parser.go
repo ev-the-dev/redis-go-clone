@@ -8,10 +8,10 @@ import (
 	"strings"
 )
 
-func Parse(r *bufio.Reader) (*Value, error) {
+func Parse(r *bufio.Reader) (*Message, error) {
 	firstByte, err := r.ReadByte()
 	if err != nil {
-		return &Value{}, fmt.Errorf("%s first byte: %w", ErrProtocolPrefix, err)
+		return &Message{}, fmt.Errorf("%s first byte: %w", ErrProtocolPrefix, err)
 	}
 
 	switch firstByte {
@@ -26,7 +26,7 @@ func Parse(r *bufio.Reader) (*Value, error) {
 	}
 }
 
-func parseArray(r *bufio.Reader) (*Value, error) {
+func parseArray(r *bufio.Reader) (*Message, error) {
 	arrLen, err := r.ReadString('\n')
 	if err != nil {
 		return nil, fmt.Errorf("%s array: length: %w", ErrParsePrefix, err)
@@ -38,13 +38,13 @@ func parseArray(r *bufio.Reader) (*Value, error) {
 	// a null array and zero-lengthed array from a RESP
 	// perspective.
 	if length <= 0 {
-		return &Value{
+		return &Message{
 			Type:   Array,
 			Length: length,
 		}, nil
 	}
 
-	arr := make([]*Value, 0, length)
+	arr := make([]*Message, 0, length)
 	for range length {
 		val, err := Parse(r)
 		if err != nil {
@@ -54,14 +54,14 @@ func parseArray(r *bufio.Reader) (*Value, error) {
 		arr = append(arr, val)
 	}
 
-	return &Value{
+	return &Message{
 		Type:   Array,
 		Array:  arr,
 		Length: length,
 	}, nil
 }
 
-func parseBulkString(r *bufio.Reader) (*Value, error) {
+func parseBulkString(r *bufio.Reader) (*Message, error) {
 	strLen, err := r.ReadString('\n')
 	if err != nil {
 		return nil, fmt.Errorf("%s bulk string: length: %w", ErrParsePrefix, err)
@@ -75,7 +75,7 @@ func parseBulkString(r *bufio.Reader) (*Value, error) {
 	// For RESP2 Compatibility
 	// Null Bulk String
 	if length == -1 {
-		return &Value{
+		return &Message{
 			Type:   BulkString,
 			Length: length,
 			String: "",
@@ -91,19 +91,19 @@ func parseBulkString(r *bufio.Reader) (*Value, error) {
 	// Consume trailing CRLF so subsequent connection commands start "clean"
 	r.ReadString('\n')
 
-	return &Value{
+	return &Message{
 		Type:   BulkString,
 		Length: length,
 		String: string(data),
 	}, nil
 }
 
-func parseSimpleString(r *bufio.Reader) (*Value, error) {
+func parseSimpleString(r *bufio.Reader) (*Message, error) {
 	line, err := r.ReadString('\n')
 	if err != nil {
 		return nil, fmt.Errorf("%s simple string: read: %w", ErrParsePrefix, err)
 	}
-	return &Value{
+	return &Message{
 		Type:   SimpleString,
 		String: strings.TrimSpace(line),
 	}, nil

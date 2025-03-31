@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"strings"
 
@@ -16,49 +17,49 @@ func (s *Server) handleConnection(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 
 	for {
-		val, err := resp.Parse(reader)
+		msg, err := resp.Parse(reader)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				fmt.Println("Client disconnected.")
 				return
 			}
-			fmt.Printf("%s cmd: %v\n", ErrCmdPrefix, err)
+			log.Printf("%s %v\n", ErrCmdPrefix, err)
 			continue
 		}
 
-		if val.Type != resp.Array || len(val.Array) <= 0 {
+		if msg.Type != resp.Array || len(msg.Array) <= 0 {
 			conn.Write([]byte(resp.EncodeSimpleErr("Expected command array")))
 			continue
 		}
 
-		cmdVal := val.Array[0]
-		if cmdVal.Type != resp.BulkString {
+		cmdMsg := msg.Array[0]
+		if cmdMsg.Type != resp.BulkString {
 			conn.Write([]byte(resp.EncodeSimpleErr("Command must be bulk string type")))
 			continue
 		}
 
-		switch strings.ToUpper(cmdVal.String) {
+		switch strings.ToUpper(cmdMsg.String) {
 		case "PING":
 			conn.Write([]byte("+PONG\r\n"))
 		case "ECHO":
-			s.handleEchoCommand(conn, val)
+			s.handleEchoCommand(conn, msg)
 		case "GET":
-			s.handleGetCommand(conn, val)
+			s.handleGetCommand(conn, msg)
 		case "SET":
-			s.handleSetCommand(conn, val)
+			s.handleSetCommand(conn, msg)
 		default:
 			conn.Write([]byte(resp.EncodeSimpleErr("Unknown command")))
 		}
 	}
 }
 
-func (s *Server) handleEchoCommand(conn net.Conn, val *resp.Value) {
-	if len(val.Array) != 2 {
+func (s *Server) handleEchoCommand(conn net.Conn, msg *resp.Message) {
+	if len(msg.Array) != 2 {
 		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `ECHO` command")))
 		return
 	}
 
-	argVal := val.Array[1]
+	argVal := msg.Array[1]
 	if argVal.Type != resp.BulkString {
 		conn.Write([]byte(resp.EncodeSimpleErr("Argument to `ECHO` command must be bulk string type")))
 		return
@@ -67,19 +68,55 @@ func (s *Server) handleEchoCommand(conn net.Conn, val *resp.Value) {
 	conn.Write([]byte(resp.EncodeBulkString(argVal.String)))
 }
 
-func (s *Server) handleGetCommand(conn net.Conn, _ *resp.Value) {
-	conn.Write([]byte(resp.EncodeSimpleErr("Not yet implemented.")))
+func (s *Server) handleGetCommand(conn net.Conn, msg *resp.Message) {
+	if len(msg.Array) <= 1 {
+		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `GET` command")))
+		return
+	}
+
+	keyMsg := msg.Array[1]
+
+	key, err := keyMsg.GetString()
+	if err != nil {
+		log.Printf("%s: GET: invalid key: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Invalid key type for `GET` command")))
+		return
+	}
+
+	val, exists := s.store.Get(key)
+	if !exists {
+		conn.Write([]byte(resp.EncodeNullBulkString()))
+		return
+	}
+
+	conn.Write([]byte(resp.EncodeBulkString(val)))
 	return
 }
 
-func (s *Server) handleSetCommand(conn net.Conn, val *resp.Value) {
-	if len(val.Array) <= 2 {
+func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
+	if len(msg.Array) <= 2 {
 		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `SET` command")))
 		return
 	}
-	// 	keyVal := val.Array[1]
-	// 	valVal := val.Array[2]
 
+	keyMsg := msg.Array[1]
+	valMsg := msg.Array[2]
+
+	key, err := keyMsg.GetString()
+	if err != nil {
+		log.Printf("%s: SET: invalid key: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Invalid key type for `SET` command")))
+		return
+	}
+
+	val, err := valMsg.GetString()
+	if err != nil {
+		log.Printf("%s: SET: invalid value: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Invalid value type for `SET` command")))
+		return
+	}
+
+	s.store.Set(key, val)
 	conn.Write([]byte(resp.EncodeSimpleString("OK")))
 	return
 }

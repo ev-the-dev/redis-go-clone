@@ -15,6 +15,11 @@ func EncodeBulkString(s string) string {
 	return fmt.Sprintf("$%d\r\n%s\r\n", len(s), s)
 }
 
+// RESP2 Specific Type
+func EncodeNullBulkString() string {
+	return fmt.Sprint("$-1\r\n")
+}
+
 func EncodeSimpleErr(s string) string {
 	return fmt.Sprintf("-ERR %s\r\n", s)
 }
