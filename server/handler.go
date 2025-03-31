@@ -41,24 +41,18 @@ func (s *Server) handleConnection(conn net.Conn) {
 		case "PING":
 			conn.Write([]byte("+PONG\r\n"))
 		case "ECHO":
-			s.handleEchoConnection(conn, val)
-		// case "GET":
-		// case "SET":
-		// 	if len(val.Array) <= 2 {
-		// 		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `SET` command")))
-		// 		continue
-		// 	}
-		//
-		// 	keyVal := val.Array[1]
-		// 	valVal := val.Array[2]
-
+			s.handleEchoCommand(conn, val)
+		case "GET":
+			s.handleGetCommand(conn, val)
+		case "SET":
+			s.handleSetCommand(conn, val)
 		default:
 			conn.Write([]byte(resp.EncodeSimpleErr("Unknown command")))
 		}
 	}
 }
 
-func (s *Server) handleEchoConnection(conn net.Conn, val *resp.Value) {
+func (s *Server) handleEchoCommand(conn net.Conn, val *resp.Value) {
 	if len(val.Array) != 2 {
 		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `ECHO` command")))
 		return
@@ -71,4 +65,21 @@ func (s *Server) handleEchoConnection(conn net.Conn, val *resp.Value) {
 	}
 
 	conn.Write([]byte(resp.EncodeBulkString(argVal.String)))
+}
+
+func (s *Server) handleGetCommand(conn net.Conn, _ *resp.Value) {
+	conn.Write([]byte(resp.EncodeSimpleErr("Not yet implemented.")))
+	return
+}
+
+func (s *Server) handleSetCommand(conn net.Conn, val *resp.Value) {
+	if len(val.Array) <= 2 {
+		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `SET` command")))
+		return
+	}
+	// 	keyVal := val.Array[1]
+	// 	valVal := val.Array[2]
+
+	conn.Write([]byte(resp.EncodeSimpleErr("Not yet implemented.")))
+	return
 }
