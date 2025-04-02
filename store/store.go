@@ -36,8 +36,11 @@ func (s *Store) Get(k string) (string, bool) {
 	return "", false
 }
 
-func (s *Store) Set(k, v string) {
+func (s *Store) Set(k, v string, exp time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.data[k] = item{value: v}
+	s.data[k] = item{
+		expiresAt: exp,
+		value:     v,
+	}
 }

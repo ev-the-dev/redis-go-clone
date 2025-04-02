@@ -125,8 +125,17 @@ func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
 	//		a. No associated value
 	//	3. EX | PX | EXAT | PXAT | KEEPTTL:
 	//		a. associated value after unless KEEPTTL
+	var opts *SetOptions
+	if len(msg.Array) > 3 {
+		opts, err := parseSETOptions(msg.Array[3:])
+		if err != nil {
+			log.Println(err)
+			conn.Write([]byte(resp.EncodeSimpleErr("Invalid data type for `SET` command option")))
+			return
+		}
+	}
 
-	s.store.Set(key, val)
+	s.store.Set(key, val, exp)
 	conn.Write([]byte(resp.EncodeSimpleString("OK")))
 	return
 }
