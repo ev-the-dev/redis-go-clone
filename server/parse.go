@@ -22,7 +22,8 @@ type SetOptions struct {
 func parseSETOptions(msgs []*resp.Message) (*SetOptions, error) {
 	opts := &SetOptions{}
 
-	for i, m := range msgs {
+	for i := 0; i < len(msgs); i++ {
+		m := msgs[i]
 		if m.Type != resp.BulkString && m.Type != resp.SimpleString {
 			return nil, fmt.Errorf("%s SET option: parse: expected (%s|%s) but received (%s)", ErrCmdPrefix, resp.BulkString, resp.SimpleString, m.Type)
 		}

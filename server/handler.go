@@ -83,13 +83,13 @@ func (s *Server) handleGetCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
-	val, exists := s.store.Get(key)
+	record, exists := s.store.Get(key)
 	if !exists {
 		conn.Write([]byte(resp.EncodeNullBulkString()))
 		return
 	}
 
-	conn.Write([]byte(resp.EncodeBulkString(val)))
+	conn.Write([]byte(resp.EncodeBulkString(record.Value)))
 	return
 }
 
@@ -116,18 +116,9 @@ func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
-	// Check Options here
-	// Loop over len of `msg.Array` starting at i := 3?
-	// Logic should follow:
-	//	1. NX | XX:
-	//		a. No associated value
-	//	2. GET:
-	//		a. No associated value
-	//	3. EX | PX | EXAT | PXAT | KEEPTTL:
-	//		a. associated value after unless KEEPTTL
-	var opts *SetOptions
+	opts := &SetOptions{}
 	if len(msg.Array) > 3 {
-		opts, err := parseSETOptions(msg.Array[3:])
+		opts, err = parseSETOptions(msg.Array[3:])
 		if err != nil {
 			log.Println(err)
 			conn.Write([]byte(resp.EncodeSimpleErr("Invalid data type for `SET` command option")))
@@ -135,7 +126,18 @@ func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
 		}
 	}
 
-	s.store.Set(key, val, exp)
-	conn.Write([]byte(resp.EncodeSimpleString("OK")))
+	if opts.KEEPTTL {
+		if record, exists := s.store.Get(key); exists {
+			opts.Expiry = record.ExpiresAt
+		}
+	}
+
+	s.store.Set(key, val, opts.Expiry)
+
+	if opts.GET {
+		conn.Write([]byte(resp.EncodeBulkString(val)))
+	} else {
+		conn.Write([]byte(resp.EncodeSimpleString("OK")))
+	}
 	return
 }
