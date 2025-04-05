@@ -28,10 +28,13 @@ func (s *Server) handleConfigCommand(conn net.Conn, msg *resp.Message) {
 	}
 }
 
+// TODO: Need to "build" the bulkstring for all params/indices instead of writing
+// on a per case basis like below
 func (s *Server) handleConfigGetCommand(conn net.Conn, msg *resp.Message) {
 	// Starting at 2 because `CONFIG` is 0 and `GET` is 1
 	for i := 2; i < len(msg.Array); i++ {
 		m := msg.Array[i]
+		fmt.Printf("M(%d): %+v\n", i, m)
 		// TODO: support glob pattern matching
 		switch strings.ToLower(m.String) {
 		case "dir":
