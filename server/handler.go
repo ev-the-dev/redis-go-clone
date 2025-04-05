@@ -33,11 +33,16 @@ func (s *Server) handleConfigGetCommand(conn net.Conn, msg *resp.Message) {
 	for i := 2; i < len(msg.Array); i++ {
 		m := msg.Array[i]
 		// TODO: support glob pattern matching
-		switch m.String {
+		switch strings.ToLower(m.String) {
 		case "dir":
 			conn.Write([]byte(resp.EncodeArray(
 				resp.EncodeBulkString("dir"),
 				resp.EncodeBulkString(s.config.Dir),
+			)))
+		case "dbfilename":
+			conn.Write([]byte(resp.EncodeArray(
+				resp.EncodeBulkString("dbfilename"),
+				resp.EncodeBulkString(s.config.DBFilename),
 			)))
 		default:
 			conn.Write([]byte(resp.EncodeSimpleErr("Unrecognized config key")))
