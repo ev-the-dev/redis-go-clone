@@ -1,6 +1,9 @@
 package resp
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // NOTE: for all encoders I might need to implement
 // some way to validate or strip RESP data signifiers.
@@ -10,6 +13,11 @@ import "fmt"
 // invalid: "+hello" -- unless '+' is meant as literal part of message.
 //
 // Although, perhaps that shouldn't be the concern of these functions.
+
+func EncodeArray(ss ...string) string {
+	s := strings.Join(ss, "")
+	return fmt.Sprintf("*%d\r\n%s", len(ss), s)
+}
 
 func EncodeBulkString(s string) string {
 	return fmt.Sprintf("$%d\r\n%s\r\n", len(s), s)

@@ -5,16 +5,19 @@ import (
 	"net"
 	"os"
 
+	"github.com/ev-the-dev/redis-go-clone/config"
 	"github.com/ev-the-dev/redis-go-clone/store"
 )
 
 type Server struct {
-	store *store.Store
+	config *config.Config
+	store  *store.Store
 }
 
 func New() *Server {
 	return &Server{
-		store: store.New(),
+		config: config.New(),
+		store:  store.New(),
 	}
 }
 

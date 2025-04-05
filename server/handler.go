@@ -12,6 +12,39 @@ import (
 	"github.com/ev-the-dev/redis-go-clone/resp"
 )
 
+func (s *Server) handleConfigCommand(conn net.Conn, msg *resp.Message) {
+	// NOTE: if I need support just the `CONFIG` command this needs to change
+	if len(msg.Array) < 3 {
+		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `CONFIG *` command")))
+		return
+	}
+
+	subCmd := msg.Array[1]
+	switch strings.ToUpper(subCmd.String) {
+	case "GET":
+		s.handleConfigGetCommand(conn, msg)
+	default:
+		conn.Write([]byte(resp.EncodeSimpleErr("Unknown CONFIG subcommand")))
+	}
+}
+
+func (s *Server) handleConfigGetCommand(conn net.Conn, msg *resp.Message) {
+	// Starting at 2 because `CONFIG` is 0 and `GET` is 1
+	for i := 2; i < len(msg.Array); i++ {
+		m := msg.Array[i]
+		// TODO: support glob pattern matching
+		switch m.String {
+		case "dir":
+			conn.Write([]byte(resp.EncodeArray(
+				resp.EncodeBulkString("dir"),
+				resp.EncodeBulkString(s.config.Dir),
+			)))
+		default:
+			conn.Write([]byte(resp.EncodeSimpleErr("Unrecognized config key")))
+		}
+	}
+}
+
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
@@ -41,6 +74,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 		switch strings.ToUpper(cmdMsg.String) {
 		case "PING":
 			conn.Write([]byte("+PONG\r\n"))
+		case "CONFIG":
+			s.handleConfigCommand(conn, msg)
 		case "ECHO":
 			s.handleEchoCommand(conn, msg)
 		case "GET":
