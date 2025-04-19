@@ -82,6 +82,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 			s.handleEchoCommand(conn, msg)
 		case "GET":
 			s.handleGetCommand(conn, msg)
+		case "KEYS":
+			s.handleKeysCommand(conn, msg)
 		case "SET":
 			s.handleSetCommand(conn, msg)
 		default:
@@ -128,6 +130,22 @@ func (s *Server) handleGetCommand(conn net.Conn, msg *resp.Message) {
 
 	conn.Write([]byte(resp.EncodeBulkString(record.Value)))
 	return
+}
+
+func (s *Server) handleKeysCommand(conn net.Conn, msg *resp.Message) {
+	if len(msg.Array) < 2 {
+		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `KEYS` command")))
+		return
+	}
+
+	// TODO: handle glob patterns
+
+	result := make([]string, 0, len(msg.Array)*2)
+	for k := range s.store.Data {
+		result = append(result, resp.EncodeBulkString(k))
+	}
+
+	conn.Write([]byte(resp.EncodeArray(result...)))
 }
 
 func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
