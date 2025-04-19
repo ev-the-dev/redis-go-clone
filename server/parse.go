@@ -19,6 +19,8 @@ type SetOptions struct {
 }
 
 // NOTE: not sure if I should define a new error type like ErrParseSet for all of the errors here
+// TODO: fix the error strings in this file: the `resp` enum returns an integer, but we're expecting a string.
+// i.e. `resp.BulkString` will be `3` not literally "BulkString"
 func parseSETOptions(msgs []*resp.Message) (*SetOptions, error) {
 	opts := &SetOptions{}
 

@@ -14,9 +14,13 @@ type Server struct {
 	store  *store.Store
 }
 
-func New() *Server {
+func New(cfg *config.Config) *Server {
+	if cfg == nil {
+		cfg = config.New()
+	}
+
 	return &Server{
-		config: config.New(),
+		config: cfg,
 		store:  store.New(),
 	}
 }
