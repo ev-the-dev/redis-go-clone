@@ -133,11 +133,12 @@ func (s *Server) handleGetCommand(conn net.Conn, msg *resp.Message) {
 }
 
 func (s *Server) handleKeysCommand(conn net.Conn, msg *resp.Message) {
-	if len(msg.Array) < 2 {
+	if len(msg.Array) != 2 {
 		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `KEYS` command")))
 		return
 	}
 
+	// pattern := msg.Array[1]
 	// TODO: handle glob patterns
 
 	result := make([]string, 0, len(msg.Array)*2)
