@@ -27,19 +27,34 @@ func main() {
 func parseArgs(args []string) (*config.Config, error) {
 	cfg := config.New()
 	for i := 0; i < len(args); i++ {
-		switch strings.ToLower(args[i]) {
+		var a, v string
+		argPair := strings.Split(args[i], "=")
+		a = argPair[0]
+		if len(argPair) == 2 {
+			v = argPair[1]
+		}
+
+		switch strings.ToLower(a) {
 		case "--dir":
-			if i+1 >= len(args) {
-				return nil, fmt.Errorf("%s parse: --dir requires argument", ErrMainArg)
+			if v != "" {
+				cfg.Dir = v
+			} else {
+				if i+1 >= len(args) {
+					return nil, fmt.Errorf("%s parse: --dir requires argument", ErrMainArg)
+				}
+				cfg.Dir = args[i+1]
+				i++
 			}
-			cfg.Dir = args[i+1]
-			i++
 		case "--dbfilename":
-			if i+1 >= len(args) {
-				return nil, fmt.Errorf("%s parse: --dbfilename requires argument", ErrMainArg)
+			if v != "" {
+				cfg.DBFilename = v
+			} else {
+				if i+1 >= len(args) {
+					return nil, fmt.Errorf("%s parse: --dbfilename requires argument", ErrMainArg)
+				}
+				cfg.DBFilename = args[i+1]
+				i++
 			}
-			cfg.DBFilename = args[i+1]
-			i++
 		}
 	}
 	return cfg, nil
