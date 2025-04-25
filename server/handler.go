@@ -13,8 +13,6 @@ import (
 )
 
 // TODO:
-// 1. Allow args to be passed in to the server to set things like `dir` and `dbfilename`
-// 2. Save or default these config args
 // 3. On startup load and parse RDB file defined in `dir` and `dbfilename`
 // 	a. NOTE: will need to support different persistence types later (not necessarily RDB)
 

@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 
 	"github.com/ev-the-dev/redis-go-clone/config"
+	"github.com/ev-the-dev/redis-go-clone/rdb"
 	"github.com/ev-the-dev/redis-go-clone/store"
 )
 
@@ -19,9 +21,16 @@ func New(cfg *config.Config) *Server {
 		cfg = config.New()
 	}
 
+	memStore := store.New()
+
+	err := rdb.Load(filepath.Join(cfg.Dir, cfg.DBFilename), memStore)
+	if err != nil {
+		fmt.Printf("%s rdb load: %v\n", ErrInitPrefix, err)
+	}
+
 	return &Server{
 		config: cfg,
-		store:  store.New(),
+		store:  memStore,
 	}
 }
 
