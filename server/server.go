@@ -25,7 +25,7 @@ func New(cfg *config.Config) *Server {
 
 	err := rdb.Load(filepath.Join(cfg.Dir, cfg.DBFilename), memStore)
 	if err != nil {
-		fmt.Printf("%s rdb load: %v\n", ErrInitPrefix, err)
+		fmt.Printf("%s new: %v\n", ErrInitPrefix, err)
 	}
 
 	return &Server{
