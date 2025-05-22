@@ -23,7 +23,7 @@ func Load(path string, s *store.Store) error {
 	r := bufio.NewReaderSize(file, 64*1024)
 
 	// 1. Header
-	// NOTE: can use `readHeader` returned magic string and version to validate
+	// NOTE: can use `readHeader`'s returned magic string and version to validate
 	_, err = readHeader(r)
 	if err != nil {
 		return err
@@ -34,6 +34,10 @@ func Load(path string, s *store.Store) error {
 	if err != nil {
 		return err
 	}
+
+	// 3. Database Selections
+
+	// 4. Footer
 
 	return nil
 }
@@ -58,11 +62,15 @@ func readHeader(r io.Reader) (string, error) {
 
 func readMetadata(r *bufio.Reader) error {
 	// NOTE: probably should just ReadByte since it should be `0xfa` anyway
-	b, err := r.ReadBytes(0xfa)
+	b, err := r.ReadByte()
 	if err != nil {
-		return fmt.Errorf("%s file read: metadata: %w", ErrLoadPrefix, err)
+		return fmt.Errorf("%s file read: metadata: first byte: %w", ErrLoadPrefix, err)
 	}
 
-	fmt.Printf("\ntype: %T\nmetadata: %q\n", b, b)
+	if b != 0xFA {
+		return fmt.Errorf("%s file read: metadata: first byte: expected 0xFA but got 0x%X", ErrLoadPrefix, b)
+	}
+
+	fmt.Printf("\ntype: %T\nmetadata: %X\n", b, b)
 	return nil
 }

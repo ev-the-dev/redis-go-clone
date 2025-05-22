@@ -50,6 +50,7 @@ func (s *Server) Start() {
 			continue
 		}
 
+		// TODO: Add a cancellation context
 		go s.handleConnection(conn)
 	}
 }

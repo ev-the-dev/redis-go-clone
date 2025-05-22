@@ -12,8 +12,8 @@ type Config struct {
 
 func New() *Config {
 	return &Config{
-		Dir:        "/var/lib/redis", // Default Redis Dir
-		DBFilename: "dump.rdb",       // Default Redis DB Filename
+		Dir:        DefaultDir,
+		DBFilename: DefaultDBFilename,
 	}
 }
 
