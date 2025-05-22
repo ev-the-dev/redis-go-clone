@@ -2,6 +2,7 @@ package rdb
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -61,7 +62,7 @@ func readHeader(r io.Reader) (string, error) {
 //	11 - special format encoding, remaining 6 bits indicate format
 
 func readMetadata(r *bufio.Reader) error {
-	// NOTE: probably should just ReadByte since it should be `0xfa` anyway
+	// 1. Read 0xFA OP Code
 	b, err := r.ReadByte()
 	if err != nil {
 		return fmt.Errorf("%s file read: metadata: first byte: %w", ErrLoadPrefix, err)
@@ -72,5 +73,34 @@ func readMetadata(r *bufio.Reader) error {
 	}
 
 	fmt.Printf("\ntype: %T\nmetadata: %X\n", b, b)
+
+	// 2. Read Length-Encoded Descriptor
+
 	return nil
+}
+
+func parseLengthEncoded(r *bufio.Reader) (uint16, error) {
+	b, err := r.ReadByte()
+	if err != nil {
+		return 0, fmt.Errorf("%s first byte: %w", ErrLengthEncodePrefix, err)
+	}
+
+	switch prefix := b >> 6; prefix {
+	case 0: // 00xxxxxx
+		// Grab next 6 bits for the total length
+		l := b & 0x3F
+		return uint16(l), nil
+	case 1: // 01xxxxxx
+		// Grab next 6 bits, plus read a byte and add those 8 bits to get the total length
+		l := b & 0x3F
+		b, err = r.ReadByte()
+		if err != nil {
+			return 0, fmt.Errorf("%s second byte: %w", ErrLengthEncodePrefix, err)
+		}
+
+	case 2: // 10xxxxxx
+	case 3: // 11xxxxxx
+	default:
+		return 0, fmt.Errorf("%s impossible significant bits: %w", ErrLengthEncodePrefix, err)
+	}
 }
