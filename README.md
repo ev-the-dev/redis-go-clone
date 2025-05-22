@@ -15,6 +15,9 @@ Each RDB file is broken up into a few sections:
 
 To fully understand how section parsing and key:value pairs in RDB files work, this section is necessary. 
 
+Some caveats:
+- Timestamps and Checksums seem to be in little-endian, so when evaluating them be cognizant of reversing the bytes.
+
 #### 1.1.1 Sections
 
 There are some reserved hex codes for specific sections and sub-sections:
