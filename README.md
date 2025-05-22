@@ -33,12 +33,12 @@ When parsing a length-encoded descriptor, you need to think about the underlying
 - `00`: Next 6 bits represent length.
 - `01`: Next 6 bits *plus* the next byte represent length (14 bits total).
 - `10`: Discard remaining 6 bits. Next 4 bytes represent length.
-- `11`: Special format. Next 6 bits describe format. Can be used to store numbers or strings using String Encoding (link incoming).
+- `11`: Special format. Next 6 bits describe format. Can be used to store numbers or strings using String Encoding (TODO: link incoming).
     - Think storing JSON as a string?
 
 Example of a length-encoded descriptor and value:
 `00 05 68 65 6c 6c 6f`
-- `00`: Value type: `0` in binary represents a string (link incoming).
+- `00`: Value type: `0` in binary represents a string (TODO: link incoming).
 - `05`: Convert from HEX->Binary: `05`->`00000101`.
     - First 2 bits are `00`, thus remaining 6 bits determine the length in bytes.
     - Remaining 6 bits are `000101` or `5`, so read the next 5 bytes as ASCII (due to value type).
@@ -71,14 +71,61 @@ These are the supported fields:
 Here's an example of how one of these fields look like in the RDB file with the op code prefix:
 `fa 09 72 65 64 69 73 2d 76 65 72 05 37 2e 34 2e 32`
 - `fa`: Indicates new aux field.
-- `09`: length encoded descriptor (see [above explanation](#11-section-parsing--length-encoding)) for the key of the key:value pair.
+- `09`: [length encoded](#11-section-parsing--length-encoding) descriptor for the key of the key:value pair.
     - Converting HEX->Binary: `09`->`00001001`.
         - First 2 bits are `00`, thus remaining 6 bits describe length, in bytes, of proceeding key.
     - `001001` = `9`, thus next 9 bytes are the key.
 - `72 65 64 69 73 2d 76 65 72`: The 9 bytes converted to ASCII read as -> `redis-ver`.
-- `05`: length encoded descriptor for the value of the key:value pair.
+- `05`: [length encoded](#11-section-parsing--length-encoding) descriptor for the value of the key:value pair.
     - Converting HEX->Binary: `05`->`00000101`.
     - `000101` = `5`, thus 5 bytes are the value.
 - `37 2e 34 2e 32`: the 5 bytes converted to ASCII->`7.4.2`.
 
-Putting everything in this example together we see that there is an aux field named `redis-ver` with a value of `7.4.2`.
+> [!TIP]
+> Putting everything in this example together we see that there is an aux field named `redis-ver` with a value of `7.4.2`.
+
+
+### 1.4 Database Selection
+
+There can be ***n*** number of DB selectors. Each section starts with `0xFE` op code followed by a byte signifying the DB number -- i.e. `fe 00` = DB number 00.
+
+Each DB section will contain series of records with a specific order of data:
+1. `0xFC` or `0xFD`: [Expire times](#111-sections). Represented in little-endian I believe (reverse order of bytes to read the number value properly). Optional?
+2. Value Type: 1 byte flag indicating type (string, list, hash)(TODO: link incoming).
+3. Key: Encoded as a REDIS string ([length-encoded](#11-section-parsing--length-encoding) ASCII).
+4. Value: Parsed according to previously read Value Type (see #2 above).
+
+Here's an example of a DB record:
+`fc 7d ab e7 4f 96 01 00 00 00 05 68 65 6c 6c 6f 05 77 6f 72 6c 64`
+
+Let's break that up a bit so it's easier to read/parse:
+`fc 7d ab e7 4f 96 01 00 00` `00` `05 68 65 6c 6c 6f` `05 77 6f 72 6c 64`
+
+1. Expire time: `fc 7d ab e7 4f 96 01 00 00`.
+    - The `fc` indicates an expire time in milliseconds, hence the following 8 bytes allocated for that timestamp.
+    - Since these timestamps are in a little-endian format, to convert them to the timestamp they need to be reversed, ergo when computing it would look like this: `00 00 01 96 4f e7 ab 7d`.
+2. Value Type: `00`.
+    - string value type.
+3. Key: `05 68 65 6c 6c 6f`.
+    - `05` HEX->Binary: `05`->`00000101`.
+        - First 2 bytes are `00`, thus only the next 6 bits describe size.
+        - Remaining bits equal `000101`, or `5`, thus the key comprises the next 5 bytes.
+    - Converting HEX->ASCII: `68 65 6c 6c 6f`->`h e l l o`
+4. Value: `05 77 6f 72 6c 64`.
+    - `05` HEX->Binary: `05`->`00000101`.
+        - First 2 bytes are `00`, thus only the next 6 bits describe size.
+        - Remaining bits equal `000101`, or `5`, thus the key comprises the next 5 bytes.
+    - Converting HEX->ASCII: `77 6f 72 6c 64`->`w o r l d`
+
+> [!TIP]
+> Putting everything in this example together we see that there is a DB field named with an expiry time in milliseconds equalling `1745097304957`, the value type is a string represented as `00`, the key is 5 bytes long and spells `hello`, the value is 5 bytes long and is a string stating `world`.
+
+
+### 1.5 Footer
+
+The footer is pretty basic, it just contains two things:
+1. `0xFF`: EOF indicator op code.
+2. Checksum: little-endian(?) 8 bytes of CRC64 checksum of the entire file.
+
+### Appendix
+TODO: Include the various encoding types and value types explanations.
