@@ -1,5 +1,33 @@
 # REDIS Go Clone
 
+## 0.0 Running & Testing
+
+I've been testing the server functionality by using Redis' client to connect to it. To run this server and test with one or more clients do the following:
+
+Ensure the Redis CLI is installed:
+```sh
+mise use --global redis
+```
+
+Clone this repository and `cd` to the root directory:
+```sh
+git clone git@github.com:ev-the-dev/redis-go-clone.git && cd redis-go-clone
+```
+
+Run the server from the root directory:
+```sh
+go run .
+```
+OR if tesing with an existing local rdb file:
+```sh
+go run . --dir ./ --dbfilename dump.rdb
+```
+
+Open a new shell to connect to the server from the previous step (this step can be repeated to simulate multiple connected clients):
+```sh
+redis-cli -p 6379
+```
+
 ## 1.0 Understanding the RDB file
 
 [File Reference](https://rdb.fnordig.de/file_format.html)
