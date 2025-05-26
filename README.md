@@ -64,11 +64,11 @@ When parsing a length-encoded descriptor, you need to think about the underlying
 - `00`: Next 6 bits represent length.
 - `01`: Next 6 bits *plus* the next byte represent length (14 bits total).
 - `10`: Discard remaining 6 bits. Next 4 bytes represent length.
-- `11`: Special format. Next 6 bits describe format. Can be used to store numbers or strings using [*String Encoding*](#113-string-encoding).
+- `11`: Special format. Next 6 bits describe format. Can be used to store numbers or strings using [*String Encoding*](#1a2-string-encoding).
 
 > [!WARNING]
 > Length Encoding has a significant nuance to it. The first 3 cases (00, 01, and 10) simply return how many bytes to read for the default value type -- this type being determined by external context, such as strings in metadata, or the [*Value Type*](#1a1-value-type) flag in the database sections.
-> The 4th case (11) provides some *extra, internal* context. It, paired with that same external context, explains whether the proceding value is of an integer or LZF type (See: [*String Encoding*](#113-string-encoding)).
+> The 4th case (11) provides some *extra, internal* context. It, paired with that same external context, explains whether the proceding value is of an integer or LZF type (See: [*String Encoding*](#1a2-string-encoding)).
 
 Example of a length-encoded descriptor and value:
 `00 05 68 65 6c 6c 6f`
@@ -77,33 +77,6 @@ Example of a length-encoded descriptor and value:
     - First 2 bits are `00`, thus remaining 6 bits determine the length in bytes.
     - Remaining 6 bits are `000101` or `5`, so read the next 5 bytes as ASCII (due to value type).
 - `68 65 6c 6c 6f`: Convert from HEX->String: `68 65 6c 6c 6f`->`H E L L O`.
-
-#### 1.1.3 String Encoding
-
-There are three types of Strings in a Redis RDB file:
-- Length prefixed strings
-- 8, 16, or 32 bit integer
-- LZF compressed string
-
-*Length Prefixed String:*
-- Length of the string, in bytes, is encoded using [*Length Encoding*](#112-length-encoding). Then the following raw bytes of the string are stored.
-- This is the case when the [length-encoded](#112-length-encoding) significant bits are either `00`, `01`, or `10` *AND* the [*Value Type*](#1a1-value-type) is `00` (string encoded) -- whether implied, as in the metadata fields; or explicit, as in the database sections.
-
-*Integers as Strings:*
-- After a [length-encoded](#112-length-encoding) value produced `11` as the significant bits, the remaining 6 bits are read to determine whether the integer is 8, 16, or 32 bits long.
-    - `0`: indicates an 8 bit integer follows. Read the next byte for the int value.
-    - `1`: indicates a 16 bit integer follows. Read the next 2 bytes for the int value.
-    - `2`: indicates a 32 bit integer follows. Read the next 4 bytes for the int value.
-
-*Compressed Strings:*
-- Like "Integers as Strings" above, after the length-encoded value produces `11`, the remaining 6 bits are read:
-    - `3`: indicates an LZF string follows.
-- The compressed string is read as follows:
-    - Compressed length `clen` is read using [length-encoding](#112-length-encoding).
-    - Uncompressed length is read using [length-encoding](#112-length-encoding).
-    - Next `clen` bytes are read.
-    - Finally, the read `clen` bytes are decompressed using the `LZF` algorithm.
-
 
 ### 1.2 Header
 
@@ -153,7 +126,7 @@ There can be ***n*** number of DB selectors. Each section starts with `0xFE` op 
 Each DB section will contain series of records with a specific order of data:
 1. `0xFC` or `0xFD`: [Expire times](#111-sections). Represented in little-endian I believe (reverse order of bytes to read the number value properly). Optional?
 2. [*Value Type*](#1a1-value-type): 1 byte flag indicating type (string, list, hash).
-3. Key: [string-encoded](#113-string-encoding).
+3. Key: [string-encoded](#1a2-string-encoding).
 4. Value: Parsed according to previously read Value Type (see #2 above).
 
 Here's an example of a DB record:
@@ -167,7 +140,7 @@ Let's break that up a bit so it's easier to read/parse:
     - Since these timestamps are in a little-endian format, to convert them to the timestamp they need to be reversed, ergo when computing it would look like this: `00 00 01 96 4f e7 ab 7d`.
 2. Value Type: `00`.
     - String value type.
-    - Might indicate [*String Encoded*](#113-string-encoding) type instead -- in which case the value ultimately is determined by the length encoded significant bits (all cases would be a string type, unless significant bits are `11`).
+    - Might indicate [*String Encoded*](#1a2-string-encoding) type instead -- in which case the value ultimately is determined by the length encoded significant bits (all cases would be a string type, unless significant bits are `11`).
 3. Key: `05 68 65 6c 6c 6f`.
     - `05` HEX->Binary: `05`->`00000101`.
         - First 2 bytes are `00`, thus only the next 6 bits describe size.
@@ -192,4 +165,46 @@ The footer is pretty basic, it just contains two things:
 ### 1.A Appendix
 
 #### 1.A.1 Value Type
+
+Value types are generally 1-byte flags. I say generally, because I still use the term "value type" for implicitly defined types, like those for string encoded keys in the metadata section.
+
+The value of the 1-byte flag correlates to a specific type:
+- `0`: [*String Encoding*](#1a2-string-encoding)
+- `1`: [*List Encoding*](#1a3-list-encoding)
+- `2`: [*Set Encoding*](#1a4-set-encoding)
+- `3`: [*Sorted Set Encoding*](#1a5-sorted-set-encoding)
+- `4`: [*Hash Encoding*](#1a6-hash-encoding)
+- `9`: [*Zipmap Encoding*](#1a7-zipmap-encoding)
+- `10`: [*Ziplist Encoding*](#1a8-ziplist-encoding)
+- `11`: [*Intset Encoding*](#1a9-intset-encoding)
+- `12`: [*Ziplist Sorted Set Encoding*](#1a10-ziplist-sorted-set-encoding)
+- `13`: [*Ziplist Hashmap Encoding*](#1a11-ziplist-hashmap-encoding)
+- `14`: [*Quicklist List Encoding*](#1a12-quicklist-list-encoding)
+
+#### 1.A.2 String Encoding
+
+There are three types of Strings in a Redis RDB file:
+- Length prefixed strings
+- 8, 16, or 32 bit integer
+- LZF compressed string
+
+*Length Prefixed String:*
+- Length of the string, in bytes, is encoded using [*Length Encoding*](#112-length-encoding). Then the following raw bytes of the string are stored.
+- This is the case when the [length-encoded](#112-length-encoding) significant bits are either `00`, `01`, or `10` *AND* the [*Value Type*](#1a1-value-type) is `00` (string encoded) -- whether implied, as in the metadata fields; or explicit, as in the database sections.
+
+*Integers as Strings:*
+- After a [length-encoded](#112-length-encoding) value produced `11` as the significant bits, the remaining 6 bits are read to determine whether the integer is 8, 16, or 32 bits long.
+    - `0`: indicates an 8 bit integer follows. Read the next byte for the int value.
+    - `1`: indicates a 16 bit integer follows. Read the next 2 bytes for the int value.
+    - `2`: indicates a 32 bit integer follows. Read the next 4 bytes for the int value.
+
+*Compressed Strings:*
+- Like "Integers as Strings" above, after the length-encoded value produces `11`, the remaining 6 bits are read:
+    - `3`: indicates an LZF string follows.
+- The compressed string is read as follows:
+    - Compressed length `clen` is read using [length-encoding](#112-length-encoding).
+    - Uncompressed length is read using [length-encoding](#112-length-encoding).
+    - Next `clen` bytes are read.
+    - Finally, the read `clen` bytes are decompressed using the `LZF` algorithm.
+
 
