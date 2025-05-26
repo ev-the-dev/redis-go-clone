@@ -60,14 +60,14 @@ There are some reserved hex codes for specific sections and sub-sections:
 
 #### 1.1.2 Length Encoding
 
-When parsing a length-encoded descriptor, you need to think about the underlying ***bits*** of the hexadecimal value. The first two bits in the byte (significant bits) determine how to parse the rest of the length-encoded descriptor *as well* as the field it describes. Here are the 4 types of significant bit pairs:
+When parsing a length-encoded descriptor, you need to think about the underlying ***bits*** of the hexadecimal value. The first two bits in the byte (significant bits) determine how to parse the rest of the length-encoded descriptor *as well* as the field it describes and how many bytes comprise that field. Here are the 4 types of significant bit pairs:
 - `00`: Next 6 bits represent length.
 - `01`: Next 6 bits *plus* the next byte represent length (14 bits total).
 - `10`: Discard remaining 6 bits. Next 4 bytes represent length.
 - `11`: Special format. Next 6 bits describe format. Can be used to store numbers or strings using [*String Encoding*](#113-string-encoding).
 
 > [!WARNING]
-> Length Encoding has a significant nuance to it. The first 3 cases (00, 01, and 10) simply return how many bytes to read for the default value type -- this type being determined by external context, such as strings in metadata, or the [*Value Type*](#A14-value-type) flag in the database sections.
+> Length Encoding has a significant nuance to it. The first 3 cases (00, 01, and 10) simply return how many bytes to read for the default value type -- this type being determined by external context, such as strings in metadata, or the [*Value Type*](#1a1-value-type) flag in the database sections.
 > The 4th case (11) provides some *extra, internal* context. It, paired with that same external context, explains whether the proceding value is of an integer or LZF type (See: [*String Encoding*](#113-string-encoding)).
 
 Example of a length-encoded descriptor and value:
@@ -87,7 +87,7 @@ There are three types of Strings in a Redis RDB file:
 
 *Length Prefixed String:*
 - Length of the string, in bytes, is encoded using [*Length Encoding*](#112-length-encoding). Then the following raw bytes of the string are stored.
-- This is the case when the [length-encoded](#112-length-encoding) significant bits are either `00`, `01`, or `10` *AND* the [*Value Type*](#A14-value-type) is `00` (string encoded) -- whether implied, as in the metadata fields; or explicit, as in the database sections.
+- This is the case when the [length-encoded](#112-length-encoding) significant bits are either `00`, `01`, or `10` *AND* the [*Value Type*](#1a1-value-type) is `00` (string encoded) -- whether implied, as in the metadata fields; or explicit, as in the database sections.
 
 *Integers as Strings:*
 - After a [length-encoded](#112-length-encoding) value produced `11` as the significant bits, the remaining 6 bits are read to determine whether the integer is 8, 16, or 32 bits long.
@@ -152,8 +152,8 @@ There can be ***n*** number of DB selectors. Each section starts with `0xFE` op 
 
 Each DB section will contain series of records with a specific order of data:
 1. `0xFC` or `0xFD`: [Expire times](#111-sections). Represented in little-endian I believe (reverse order of bytes to read the number value properly). Optional?
-2. Value Type: 1 byte flag indicating type (string, list, hash)(TODO: link incoming).
-3. Key: Encoded as a REDIS string ([length-encoded](#11-section-parsing--length-encoding) ASCII).
+2. [*Value Type*](#1a1-value-type): 1 byte flag indicating type (string, list, hash).
+3. Key: [string-encoded](#113-string-encoding).
 4. Value: Parsed according to previously read Value Type (see #2 above).
 
 Here's an example of a DB record:
@@ -189,5 +189,7 @@ The footer is pretty basic, it just contains two things:
 1. `0xFF`: EOF indicator op code.
 2. Checksum: little-endian(?) 8 bytes of CRC64 checksum of the entire file.
 
-### Appendix
-TODO: Include the various encoding types and value types explanations.
+### 1.A Appendix
+
+#### 1.A.1 Value Type
+
