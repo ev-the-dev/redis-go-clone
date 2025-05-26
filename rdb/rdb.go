@@ -2,7 +2,7 @@ package rdb
 
 import (
 	"bufio"
-	"errors"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -79,7 +79,7 @@ func readMetadata(r *bufio.Reader) error {
 	return nil
 }
 
-func parseLengthEncoded(r *bufio.Reader) (uint16, error) {
+func parseLengthEncoded(r *bufio.Reader) (uint32, error) {
 	b, err := r.ReadByte()
 	if err != nil {
 		return 0, fmt.Errorf("%s first byte: %w", ErrLengthEncodePrefix, err)
@@ -89,17 +89,25 @@ func parseLengthEncoded(r *bufio.Reader) (uint16, error) {
 	case 0: // 00xxxxxx
 		// Grab next 6 bits for the total length
 		l := b & 0x3F
-		return uint16(l), nil
+		return uint32(l), nil
 	case 1: // 01xxxxxx
 		// Grab next 6 bits, plus read a byte and add those 8 bits to get the total length
-		l := b & 0x3F
+		l1 := b & 0x3F
 		b, err = r.ReadByte()
 		if err != nil {
-			return 0, fmt.Errorf("%s second byte: %w", ErrLengthEncodePrefix, err)
+			return 0, fmt.Errorf("%s case 1: %w", ErrLengthEncodePrefix, err)
 		}
-
+		// Can't do bit operations on this before alloc more mem. Each byte read from `ReadByte` only allocates 8 bits. We need at least 14 as per the protocol for this case. Need to ensure enough mem to shift by 8 bits so that way we can use the OR operator to "concat" the second byte's 8 bits onto the end.
+		return (uint32(l1)<<8 | uint32(b)), nil
 	case 2: // 10xxxxxx
+		// Discard remaining 6 bits, then use the next 4 bytes as the total length
+		l := make([]byte, 4)
+		if _, err := io.ReadFull(r, l); err != nil {
+			return 0, fmt.Errorf("%s case 2: %w", ErrLengthEncodePrefix, err)
+		}
+		return binary.BigEndian.Uint32(l), nil
 	case 3: // 11xxxxxx
+	// Special format -- next 6 bits describe the format
 	default:
 		return 0, fmt.Errorf("%s impossible significant bits: %w", ErrLengthEncodePrefix, err)
 	}

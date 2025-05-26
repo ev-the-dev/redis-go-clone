@@ -64,7 +64,7 @@ When parsing a length-encoded descriptor, you need to think about the underlying
 - `00`: Next 6 bits represent length.
 - `01`: Next 6 bits *plus* the next byte represent length (14 bits total).
 - `10`: Discard remaining 6 bits. Next 4 bytes represent length.
-- `11`: Special format. Next 6 bits describe format. Can be used to store numbers or strings using String Encoding (TODO: link incoming).
+- `11`: Special format. Next 6 bits describe format. Can be used to store numbers or strings using [*String Encoding*](#113-string-encoding)    (I'm not sure what String Encoding has to do with this tbh).
     - Think storing JSON as a string?
 
 Example of a length-encoded descriptor and value:
@@ -74,6 +74,35 @@ Example of a length-encoded descriptor and value:
     - First 2 bits are `00`, thus remaining 6 bits determine the length in bytes.
     - Remaining 6 bits are `000101` or `5`, so read the next 5 bytes as ASCII (due to value type).
 - `68 65 6c 6c 6f`: Convert from HEX->String: `68 65 6c 6c 6f`->`H E L L O`.
+
+#### 1.1.3 String Encoding
+
+> [!NOTE]
+> I'm a little confused about this portion. I'm not entirely sure what string encoding has to do with reading raw bit values.
+
+There are three types of Strings in a Redis RDB file:
+- Length prefixed strings
+- 8, 16, or 32 bit integer
+- LZF compressed string
+
+*Length Prefixed String:*
+- Length of the string, in bytes, is encoded using [*Length Encoding*](#112-length-encoding). Then the following raw bytes of the string are stored.
+
+*Integers as Strings:*
+- After a [length-encoded](#112-length-encoding) value produced `11` as the significant bits, the remaining 6 bits are read to determine whether the integer is 8, 16, or 32 bits long.
+    - `0`: indicates an 8 bit integer follows. Read the next byte for the int value.
+    - `1`: indicates a 16 bit integer follows. Read the next 2 bytes for the int value.
+    - `2`: indicates a 32 bit integer follows. Read the next 4 bytes for the int value.
+
+*Compressed Strings:*
+- Like "Integers as Strings" above, after the length-encoded value produces `11`, the remaining 6 bits are read:
+    - `3`: indicates an LZF string follows.
+- The compressed string is read as follows:
+    - Compressed length `clen` is read using [length-encoding](#112-length-encoding).
+    - Uncompressed length is read using [length-encoding](#112-length-encoding).
+    - Next `clen` bytes are read.
+    - Finally, the read `clen` bytes are decompressed using the `LZF` algorithm.
+
 
 ### 1.2 Header
 
