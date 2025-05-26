@@ -79,43 +79,43 @@ func readMetadata(r *bufio.Reader) error {
 	return nil
 }
 
-func parseLengthEncoded(r *bufio.Reader) (uint32, error) {
+func parseLengthEncoded(r *bufio.Reader, vt ValueType) (uint32, ValueType, error) {
 	b, err := r.ReadByte()
 	if err != nil {
-		return 0, fmt.Errorf("%s first byte: %w", ErrLengthEncodePrefix, err)
+		return 0, vt, fmt.Errorf("%s first byte: %w", ErrLengthEncodePrefix, err)
 	}
 
 	switch prefix := b >> 6; prefix {
 	case 0: // 00xxxxxx
 		// Grab next 6 bits for the total length
 		l := b & 0x3F
-		return uint32(l), nil
+		return uint32(l), vt, nil
 	case 1: // 01xxxxxx
 		// Grab next 6 bits, plus read a byte and add those 8 bits to get the total length
 		l1 := b & 0x3F
 		b, err = r.ReadByte()
 		if err != nil {
-			return 0, fmt.Errorf("%s case 1: %w", ErrLengthEncodePrefix, err)
+			return 0, vt, fmt.Errorf("%s case 1: %w", ErrLengthEncodePrefix, err)
 		}
 		// Can't do bit operations on this before alloc more mem. Each byte read from `ReadByte` only allocates 8 bits. We need at least 14 as per the protocol for this case. Need to ensure enough mem to shift by 8 bits so that way we can use the OR operator to "concat" the second byte's 8 bits onto the end.
-		return (uint32(l1)<<8 | uint32(b)), nil
+		return (uint32(l1)<<8 | uint32(b)), vt, nil
 	case 2: // 10xxxxxx
 		// Discard remaining 6 bits, then use the next 4 bytes as the total length
 		l := make([]byte, 4)
 		if _, err := io.ReadFull(r, l); err != nil {
-			return 0, fmt.Errorf("%s case 2: %w", ErrLengthEncodePrefix, err)
+			return 0, vt, fmt.Errorf("%s case 2: %w", ErrLengthEncodePrefix, err)
 		}
-		return binary.BigEndian.Uint32(l), nil
+		return binary.BigEndian.Uint32(l), vt, nil
 	case 3: // 11xxxxxx
 		// Special format -- next 6 bits describe the format
 		specialType := b & 0x3F
 		return parseLengthEncodedSpecialFormat(specialType)
 	default:
-		return 0, fmt.Errorf("%s impossible significant bits: %w", ErrLengthEncodePrefix, err)
+		return 0, vt, fmt.Errorf("%s impossible significant bits: %w", ErrLengthEncodePrefix, err)
 	}
 }
 
-func parseLengthEncodedSpecialFormat(bits byte) (uint32, error) {
+func parseLengthEncodedSpecialFormat(bits byte) (uint32, ValueType, error) {
 	switch bits {
 	case 0: // 8-bit integer
 
