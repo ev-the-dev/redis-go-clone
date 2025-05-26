@@ -107,8 +107,17 @@ func parseLengthEncoded(r *bufio.Reader) (uint32, error) {
 		}
 		return binary.BigEndian.Uint32(l), nil
 	case 3: // 11xxxxxx
-	// Special format -- next 6 bits describe the format
+		// Special format -- next 6 bits describe the format
+		specialType := b & 0x3F
+		return parseLengthEncodedSpecialFormat(specialType)
 	default:
 		return 0, fmt.Errorf("%s impossible significant bits: %w", ErrLengthEncodePrefix, err)
+	}
+}
+
+func parseLengthEncodedSpecialFormat(bits byte) (uint32, error) {
+	switch bits {
+	case 0: // 8-bit integer
+
 	}
 }
