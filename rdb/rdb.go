@@ -10,6 +10,8 @@ import (
 	"github.com/ev-the-dev/redis-go-clone/store"
 )
 
+// TODO: Break out the parsing to a struct, containing the reader, with the reading/parsing methods.
+
 func Load(path string, s *store.Store) error {
 	file, err := os.Open(path)
 	if err != nil {
@@ -111,13 +113,17 @@ func parseLengthEncoded(r *bufio.Reader, vt ValueType) (uint32, ValueType, error
 		specialType := b & 0x3F
 		return parseLengthEncodedSpecialFormat(specialType)
 	default:
-		return 0, vt, fmt.Errorf("%s impossible significant bits: %w", ErrLengthEncodePrefix, err)
+		return 0, vt, fmt.Errorf("%s impossible significant bits", ErrLengthEncodePrefix)
 	}
 }
 
 func parseLengthEncodedSpecialFormat(bits byte) (uint32, ValueType, error) {
 	switch bits {
-	case 0: // 8-bit integer
-
+	case 0: // 8-bit integer, read next byte
+	case 1: // 16-bit integer, read next 2 bytes
+	case 2: // 32-bit integer, read next 4 bytes
+	case 3: // LZF compressed string
+	default:
+		return 0, ErrEncoded, fmt.Errorf("%s impossible remaining bits value", ErrSpecialLengthEncodePrefix)
 	}
 }
