@@ -8,6 +8,15 @@ const (
 	ErrSpecialLengthEncodePrefix ErrPrefix = "rdb: parse: length encoding: special format:"
 )
 
+type SpecialLengthType byte
+
+const (
+	SpecialInt8 SpecialLengthType = iota
+	SpecialInt16
+	SpecialInt32
+	SpecialLZF
+)
+
 type ValueType byte
 
 const (

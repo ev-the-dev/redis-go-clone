@@ -10,8 +10,6 @@ import (
 	"github.com/ev-the-dev/redis-go-clone/store"
 )
 
-// TODO: Break out the parsing to a struct, containing the reader, with the reading/parsing methods.
-
 func Load(path string, s *store.Store) error {
 	file, err := os.Open(path)
 	if err != nil {
@@ -55,14 +53,6 @@ func readHeader(r io.Reader) (string, error) {
 	return string(header), nil
 }
 
-// TODO: create parser for length encoding
-// after each delim for key-value pair, first 2 bits are length encoding
-// i.e.
-//	00 - next 6 bits == length
-//	01 - next 14 bits == length
-//	10 - discard next 6 bits, next 4 bytes == length
-//	11 - special format encoding, remaining 6 bits indicate format
-
 func readMetadata(r *bufio.Reader) error {
 	// 1. Read 0xFA OP Code
 	b, err := r.ReadByte()
@@ -81,49 +71,84 @@ func readMetadata(r *bufio.Reader) error {
 	return nil
 }
 
-func parseLengthEncoded(r *bufio.Reader, vt ValueType) (uint32, ValueType, error) {
+type ParseLength struct {
+	IsSpecial   bool
+	Length      uint32
+	SpecialType SpecialLengthType
+	ValType     ValueType
+}
+
+func parseLengthEncoded(r *bufio.Reader, vt ValueType) (*ParseLength, error) {
 	b, err := r.ReadByte()
 	if err != nil {
-		return 0, vt, fmt.Errorf("%s first byte: %w", ErrLengthEncodePrefix, err)
+		return nil, fmt.Errorf("%s first byte: %w", ErrLengthEncodePrefix, err)
 	}
 
 	switch prefix := b >> 6; prefix {
 	case 0: // 00xxxxxx
 		// Grab next 6 bits for the total length
 		l := b & 0x3F
-		return uint32(l), vt, nil
+		return &ParseLength{
+			IsSpecial: false,
+			Length:    uint32(l),
+			ValType:   vt,
+		}, nil
 	case 1: // 01xxxxxx
 		// Grab next 6 bits, plus read a byte and add those 8 bits to get the total length
 		l1 := b & 0x3F
 		b, err = r.ReadByte()
 		if err != nil {
-			return 0, vt, fmt.Errorf("%s case 1: %w", ErrLengthEncodePrefix, err)
+			return nil, fmt.Errorf("%s case 1: %w", ErrLengthEncodePrefix, err)
 		}
 		// Can't do bit operations on this before alloc more mem. Each byte read from `ReadByte` only allocates 8 bits. We need at least 14 as per the protocol for this case. Need to ensure enough mem to shift by 8 bits so that way we can use the OR operator to "concat" the second byte's 8 bits onto the end.
-		return (uint32(l1)<<8 | uint32(b)), vt, nil
+		lengthTotal := (uint32(l1)<<8 | uint32(b))
+		return &ParseLength{
+			IsSpecial: false,
+			Length:    lengthTotal,
+			ValType:   vt,
+		}, nil
 	case 2: // 10xxxxxx
 		// Discard remaining 6 bits, then use the next 4 bytes as the total length
 		l := make([]byte, 4)
 		if _, err := io.ReadFull(r, l); err != nil {
-			return 0, vt, fmt.Errorf("%s case 2: %w", ErrLengthEncodePrefix, err)
+			return nil, fmt.Errorf("%s case 2: %w", ErrLengthEncodePrefix, err)
 		}
-		return binary.BigEndian.Uint32(l), vt, nil
+		return &ParseLength{
+			IsSpecial: false,
+			Length:    binary.BigEndian.Uint32(l),
+			ValType:   vt,
+		}, nil
 	case 3: // 11xxxxxx
 		// Special format -- next 6 bits describe the format
 		specialType := b & 0x3F
 		return parseLengthEncodedSpecialFormat(specialType)
 	default:
-		return 0, vt, fmt.Errorf("%s impossible significant bits", ErrLengthEncodePrefix)
+		return nil, fmt.Errorf("%s impossible significant bits", ErrLengthEncodePrefix)
 	}
 }
 
-func parseLengthEncodedSpecialFormat(bits byte) (uint32, ValueType, error) {
+func parseLengthEncodedSpecialFormat(bits byte) (*ParseLength, error) {
+	pL := &ParseLength{
+		IsSpecial: true,
+		ValType:   StringEncoded,
+	}
 	switch bits {
-	case 0: // 8-bit integer, read next byte
-	case 1: // 16-bit integer, read next 2 bytes
-	case 2: // 32-bit integer, read next 4 bytes
+	case 0: // 8-bit integer, read next byte for value
+		pL.Length = 1
+		pL.SpecialType = SpecialInt8
+		return pL, nil
+	case 1: // 16-bit integer, read next 2 bytes for value
+		pL.Length = 2
+		pL.SpecialType = SpecialInt16
+		return pL, nil
+	case 2: // 32-bit integer, read next 4 bytes for value
+		pL.Length = 4
+		pL.SpecialType = SpecialInt32
+		return pL, nil
 	case 3: // LZF compressed string
+		pL.SpecialType = SpecialLZF
+		return pL, nil
 	default:
-		return 0, ErrEncoded, fmt.Errorf("%s impossible remaining bits value", ErrSpecialLengthEncodePrefix)
+		return nil, fmt.Errorf("%s impossible remaining bits value", ErrSpecialLengthEncodePrefix)
 	}
 }
