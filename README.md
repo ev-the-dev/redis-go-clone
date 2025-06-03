@@ -49,7 +49,7 @@ Some caveats:
 #### 1.1.1 Sections
 
 There are some reserved hex codes for specific sections and sub-sections:
-- `0xFA`: Beginning of a new Auxiliary field. Followed by length-encoded key:value pair.
+- `0xFA`: Beginning of a new Auxiliary field. Followed by [length-encoded](#112-length-encoding) key:value pair.
 - `0xFE`: Beginning of a new Database. Followed by length-encoded value describing DB number.
 - `0xFB`: Proceeds `0xFE` and describes hash table sizes for main keyspace and expires.
     - NOTE: It's my understanding that for newer versions of REDIS, the next two bytes will always be `02 01`. This is because REDIS now uses *lazy resizing* and does not need precise initial sizing.
@@ -72,11 +72,11 @@ When parsing a length-encoded descriptor, you need to think about the underlying
 
 Example of a length-encoded descriptor and value:
 `00 05 68 65 6c 6c 6f`
-- `00`: Value type: `0` in binary represents a string (TODO: link incoming).
+- `00`: Value type: `0` in binary represents a [string-encoded](#1a2-string-encoding) value type.
 - `05`: Convert from HEX->Binary: `05`->`00000101`.
     - First 2 bits are `00`, thus remaining 6 bits determine the length in bytes.
-    - Remaining 6 bits are `000101` or `5`, so read the next 5 bytes as ASCII (due to value type).
-- `68 65 6c 6c 6f`: Convert from HEX->String: `68 65 6c 6c 6f`->`H E L L O`.
+    - Remaining 6 bits are `000101` or `5`, so read the next 5 bytes as ASCII (due to non-special format string value type).
+- `68 65 6c 6c 6f`: Convert from HEX->String: `68 65 6c 6c 6f`->`h e l l o`.
 
 ### 1.2 Header
 
@@ -93,7 +93,7 @@ The header is extremely simple, it contains two key pieces of information:
 This section *should* have a fixed amount of entries. I say *should* because there could be unknown fields, but these should be ignored by the parser.
 
 > [!NOTE]
-> Each key:value pair is preceded by the `0xFA` op code and are of the ***string*** value type.
+> Each key:value pair is preceded by the `0xFA` op code and are [***string-encoded***](#1a2-string-encoding) value types.
 > Because they'll always be of a string value type, there's no need for the extra preceeding byte to tell us what the value type is, like we see in the database section.
 
 These are the supported fields:
@@ -105,7 +105,7 @@ These are the supported fields:
 Here's an example of how one of these fields look like in the RDB file with the op code prefix:
 `fa 09 72 65 64 69 73 2d 76 65 72 05 37 2e 34 2e 32`
 - `fa`: Indicates new aux field.
-- `09`: [length encoded](#11-section-parsing--length-encoding) descriptor for the key of the key:value pair.
+- `09`: [length-encoded](#11-section-parsing--length-encoding) descriptor for the key of the key:value pair.
     - Converting HEX->Binary: `09`->`00001001`.
         - First 2 bits are `00`, thus remaining 6 bits describe length, in bytes, of proceeding key.
     - `001001` = `9`, thus next 9 bytes are the key.
@@ -153,7 +153,7 @@ Let's break that up a bit so it's easier to read/parse:
     - Converting HEX->ASCII: `77 6f 72 6c 64`->`w o r l d`
 
 > [!TIP]
-> Putting everything in this example together we see that there is a DB field named with an expiry time in milliseconds equalling `1745097304957`, the value type is a string represented as `00`, the key is 5 bytes long and spells `hello`, the value is 5 bytes long and is a string stating `world`.
+> Putting everything in this example together we see that there is a DB field with an expiry time in milliseconds equalling `1745097304957`, the value type is a [string-encoded](#1a2-string-encoding) represented as `00`, the key is 5 bytes long and spells `hello`, the value is 5 bytes long and is a string stating `world`.
 
 
 ### 1.5 Footer
