@@ -24,7 +24,6 @@ func Load(path string, s *store.Store) error {
 	r := bufio.NewReaderSize(file, 64*1024)
 
 	// 1. Header
-	// NOTE: can use `readHeader`'s returned magic string and version to validate
 	_, err = readHeader(r)
 	if err != nil {
 		return err
@@ -64,11 +63,23 @@ func readMetadata(r *bufio.Reader) error {
 		return fmt.Errorf("%s file read: metadata: first byte: expected 0xFA but got 0x%X", ErrLoadPrefix, b)
 	}
 
-	fmt.Printf("\ntype: %T\nmetadata: %X\n", b, b)
+	// 2. Read Key
+	// 2a. Read Length-Encoded Descriptor
+	pL, err := parseLengthEncoded(r, StringEncoded)
+	if err != nil {
+		return fmt.Errorf("%s %w", ErrReadMetadata, err)
+	}
 
-	// 2. Read Length-Encoded Descriptor
-
+	// 2b. Read Value of Key
+	pD, err := parseData(r, pL)
+	if err != nil {
+		return fmt.Errorf("%s %w", ErrReadMetadata, err)
+	}
 	return nil
+}
+
+func parseData(r *bufio.Reader, pL *ParseLength) (*ParseData, error) {
+
 }
 
 type ParseLength struct {

@@ -5,6 +5,7 @@ type ErrPrefix string
 const (
 	ErrLoadPrefix                ErrPrefix = "rdb: load:"
 	ErrLengthEncodePrefix        ErrPrefix = "rdb: parse: length encoding:"
+	ErrReadMetadata              ErrPrefix = "rdb: read: metadata:"
 	ErrSpecialLengthEncodePrefix ErrPrefix = "rdb: parse: length encoding: special format:"
 )
 
