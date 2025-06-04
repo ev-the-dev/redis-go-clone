@@ -42,6 +42,13 @@ func Load(path string, s *store.Store) error {
 	return nil
 }
 
+type LocalEntryValue struct {
+	Key     any
+	KeyType ValueType
+	Val     any
+	ValType ValueType
+}
+
 func readHeader(r io.Reader) (string, error) {
 	header := make([]byte, 9)
 
@@ -63,23 +70,51 @@ func readMetadata(r *bufio.Reader) error {
 		return fmt.Errorf("%s file read: metadata: first byte: expected 0xFA but got 0x%X", ErrLoadPrefix, b)
 	}
 
-	// 2. Read Key
+	lev := &LocalEntryValue{}
+	// 2. Begin Read Key
 	// 2a. Read Length-Encoded Descriptor
 	pL, err := parseLengthEncoded(r, StringEncoded)
 	if err != nil {
-		return fmt.Errorf("%s %w", ErrReadMetadata, err)
+		return fmt.Errorf("%s key: %w", ErrReadMetadata, err)
 	}
+
+	lev.KeyType = pL.ValType
 
 	// 2b. Read Value of Key
 	pD, err := parseData(r, pL)
 	if err != nil {
-		return fmt.Errorf("%s %w", ErrReadMetadata, err)
+		return fmt.Errorf("%s key: %w", ErrReadMetadata, err)
 	}
+
+	lev.Key = pD
+
+	// 3. Begin Read Value
+	// 3a. Read Length-Encoded Descriptor
+	pL, err = parseLengthEncoded(r, StringEncoded)
+	if err != nil {
+		return fmt.Errorf("%s value: %w", ErrReadMetadata, err)
+	}
+
+	lev.ValType = pL.ValType
+
+	// 3b. Read Value of Value
+	pD, err = parseData(r, pL)
+	if err != nil {
+		return fmt.Errorf("%s value: %w", ErrReadMetadata, err)
+	}
+
+	lev.Val = pD
+
+	// 4. Store Key:Value to Store
+
 	return nil
 }
 
-func parseData(r *bufio.Reader, pL *ParseLength) (*ParseData, error) {
-
+func parseData(r *bufio.Reader, pL *ParseLength) (any, error) {
+	switch pL.ValType {
+	case StringEncoded:
+		return parseStringData(r, pL)
+	}
 }
 
 type ParseLength struct {
@@ -87,6 +122,10 @@ type ParseLength struct {
 	Length      uint32
 	SpecialType SpecialLengthType
 	ValType     ValueType
+}
+
+func parseStringData(r *bufio.Reader, pL *ParseLength) (RDBList, error) {
+	return RDBString("asdf"), nil
 }
 
 func parseLengthEncoded(r *bufio.Reader, vt ValueType) (*ParseLength, error) {
