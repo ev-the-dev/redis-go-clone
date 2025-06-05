@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 
 	"github.com/ev-the-dev/redis-go-clone/store"
 )
@@ -42,7 +43,7 @@ func Load(path string, s *store.Store) error {
 	return nil
 }
 
-type LocalEntryValue struct {
+type LocalEntry struct {
 	Key     any
 	KeyType ValueType
 	Val     any
@@ -70,7 +71,7 @@ func readMetadata(r *bufio.Reader) error {
 		return fmt.Errorf("%s file read: metadata: first byte: expected 0xFA but got 0x%X", ErrLoadPrefix, b)
 	}
 
-	lev := &LocalEntryValue{}
+	lE := &LocalEntry{}
 	// 2. Begin Read Key
 	// 2a. Read Length-Encoded Descriptor
 	pL, err := parseLengthEncoded(r, StringEncoded)
@@ -78,7 +79,7 @@ func readMetadata(r *bufio.Reader) error {
 		return fmt.Errorf("%s key: %w", ErrReadMetadata, err)
 	}
 
-	lev.KeyType = pL.ValType
+	lE.KeyType = pL.ValType
 
 	// 2b. Read Value of Key
 	pD, err := parseData(r, pL)
@@ -86,7 +87,7 @@ func readMetadata(r *bufio.Reader) error {
 		return fmt.Errorf("%s key: %w", ErrReadMetadata, err)
 	}
 
-	lev.Key = pD
+	lE.Key = pD
 
 	// 3. Begin Read Value
 	// 3a. Read Length-Encoded Descriptor
@@ -95,7 +96,7 @@ func readMetadata(r *bufio.Reader) error {
 		return fmt.Errorf("%s value: %w", ErrReadMetadata, err)
 	}
 
-	lev.ValType = pL.ValType
+	lE.ValType = pL.ValType
 
 	// 3b. Read Value of Value
 	pD, err = parseData(r, pL)
@@ -103,9 +104,10 @@ func readMetadata(r *bufio.Reader) error {
 		return fmt.Errorf("%s value: %w", ErrReadMetadata, err)
 	}
 
-	lev.Val = pD
+	lE.Val = pD
 
 	// 4. Store Key:Value to Store
+	fmt.Printf("LocalEntry: %+v\n", lE)
 
 	return nil
 }
@@ -114,7 +116,48 @@ func parseData(r *bufio.Reader, pL *ParseLength) (any, error) {
 	switch pL.ValType {
 	case StringEncoded:
 		return parseStringData(r, pL)
+	default:
+		return nil, fmt.Errorf("%s unsupported ValueType: %d", ErrParseDataPrefix, pL.ValType)
 	}
+}
+
+func parseStringData(r *bufio.Reader, pL *ParseLength) (string, error) {
+	if pL.IsSpecial {
+		switch pL.SpecialType {
+		case SpecialInt8:
+			b, err := r.ReadByte()
+			if err != nil {
+				return "", fmt.Errorf("%s string: special int8: %w", ErrParseDataPrefix, err)
+			}
+			return strconv.Itoa(int(int8(b))), nil
+		case SpecialInt16:
+			b := make([]byte, 2)
+			if _, err := io.ReadFull(r, b); err != nil {
+				return "", fmt.Errorf("%s string: special int16 %w", ErrParseDataPrefix, err)
+			}
+			num := int16(binary.BigEndian.Uint16(b))
+			return strconv.Itoa(int(num)), nil
+		case SpecialInt32:
+			b := make([]byte, 4)
+			if _, err := io.ReadFull(r, b); err != nil {
+				return "", fmt.Errorf("%s string: special int32 %w", ErrParseDataPrefix, err)
+			}
+			num := int32(binary.BigEndian.Uint32(b))
+			return strconv.Itoa(int(num)), nil
+		case SpecialLZF:
+			return "", fmt.Errorf("% string: special LZF: NOT IMPLEMENTED YET", ErrParseDataPrefix)
+		default:
+			return "", fmt.Errorf("% string: special: unsupported special type: %d", ErrParseDataPrefix, pL.SpecialType)
+		}
+	}
+
+	b := make([]byte, pL.Length)
+	if _, err := io.ReadFull(r, b); err != nil {
+		return "", fmt.Errorf("%s string: read full: %w", ErrParseDataPrefix, err)
+	}
+
+	fmt.Printf("STRING::: %v\n", string(b))
+	return string(b), nil
 }
 
 type ParseLength struct {
@@ -122,10 +165,6 @@ type ParseLength struct {
 	Length      uint32
 	SpecialType SpecialLengthType
 	ValType     ValueType
-}
-
-func parseStringData(r *bufio.Reader, pL *ParseLength) (RDBList, error) {
-	return RDBString("asdf"), nil
 }
 
 func parseLengthEncoded(r *bufio.Reader, vt ValueType) (*ParseLength, error) {
