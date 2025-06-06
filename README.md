@@ -46,6 +46,7 @@ To fully understand how section parsing and key:value pairs in RDB files work, t
 Some caveats:
 - Timestamps and Checksums seem to be in little-endian, so when evaluating them be cognizant of reversing the bytes.
 - It also seems like the [*metadata*](#13-metadata--aux-fields) section uses little-endian for its integers.
+    - This might be true of any ints as strings regardless of section (the special case string encoded).
 
 #### 1.1.1 Sections
 

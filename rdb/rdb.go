@@ -161,14 +161,14 @@ func parseStringData(r *bufio.Reader, pL *ParseLength) (string, error) {
 			if _, err := io.ReadFull(r, b); err != nil {
 				return "", fmt.Errorf("%s string: special int16: %w", ErrParseDataPrefix, err)
 			}
-			num := int16(binary.BigEndian.Uint16(b))
+			num := int16(binary.LittleEndian.Uint16(b))
 			return strconv.Itoa(int(num)), nil
 		case SpecialInt32:
 			b := make([]byte, 4)
 			if _, err := io.ReadFull(r, b); err != nil {
 				return "", fmt.Errorf("%s string: special int32: %w", ErrParseDataPrefix, err)
 			}
-			num := int32(binary.BigEndian.Uint32(b))
+			num := int32(binary.LittleEndian.Uint32(b))
 			return strconv.Itoa(int(num)), nil
 		case SpecialLZF:
 			return "", fmt.Errorf("% string: special LZF: NOT IMPLEMENTED YET", ErrParseDataPrefix)
