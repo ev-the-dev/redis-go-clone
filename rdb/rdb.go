@@ -61,55 +61,60 @@ func readHeader(r io.Reader) (string, error) {
 }
 
 func readMetadata(r *bufio.Reader) error {
-	// 1. Read 0xFA OP Code
-	b, err := r.ReadByte()
-	if err != nil {
-		return fmt.Errorf("%s file read: metadata: first byte: %w", ErrLoadPrefix, err)
+	for {
+		// 1. Read 0xFA OP Code
+		b, err := r.ReadByte()
+		if err != nil {
+			return fmt.Errorf("%s file read: metadata: first byte: %w", ErrLoadPrefix, err)
+		}
+
+		// If a DB marker is found, then we've finished reading from the metadata section
+		if b == 0xFE {
+			return nil
+		}
+
+		if b != 0xFA {
+			return fmt.Errorf("%s file read: metadata: first byte: expected 0xFA but got 0x%X", ErrLoadPrefix, b)
+		}
+
+		lE := &LocalEntry{}
+		// 2. Begin Read Key
+		// 2a. Read Length-Encoded Descriptor
+		pL, err := parseLengthEncoded(r, StringEncoded)
+		if err != nil {
+			return fmt.Errorf("%s key: %w", ErrReadMetadata, err)
+		}
+
+		lE.KeyType = pL.ValType
+
+		// 2b. Read Value of Key
+		pD, err := parseData(r, pL)
+		if err != nil {
+			return fmt.Errorf("%s key: %w", ErrReadMetadata, err)
+		}
+
+		lE.Key = pD
+
+		// 3. Begin Read Value
+		// 3a. Read Length-Encoded Descriptor
+		pL, err = parseLengthEncoded(r, StringEncoded)
+		if err != nil {
+			return fmt.Errorf("%s value: %w", ErrReadMetadata, err)
+		}
+
+		lE.ValType = pL.ValType
+
+		// 3b. Read Value of Value
+		pD, err = parseData(r, pL)
+		if err != nil {
+			return fmt.Errorf("%s value: %w", ErrReadMetadata, err)
+		}
+
+		lE.Val = pD
+
+		// 4. Store Key:Value to Store
+		fmt.Printf("LocalEntry: %+v\n", lE)
 	}
-
-	if b != 0xFA {
-		return fmt.Errorf("%s file read: metadata: first byte: expected 0xFA but got 0x%X", ErrLoadPrefix, b)
-	}
-
-	lE := &LocalEntry{}
-	// 2. Begin Read Key
-	// 2a. Read Length-Encoded Descriptor
-	pL, err := parseLengthEncoded(r, StringEncoded)
-	if err != nil {
-		return fmt.Errorf("%s key: %w", ErrReadMetadata, err)
-	}
-
-	lE.KeyType = pL.ValType
-
-	// 2b. Read Value of Key
-	pD, err := parseData(r, pL)
-	if err != nil {
-		return fmt.Errorf("%s key: %w", ErrReadMetadata, err)
-	}
-
-	lE.Key = pD
-
-	// 3. Begin Read Value
-	// 3a. Read Length-Encoded Descriptor
-	pL, err = parseLengthEncoded(r, StringEncoded)
-	if err != nil {
-		return fmt.Errorf("%s value: %w", ErrReadMetadata, err)
-	}
-
-	lE.ValType = pL.ValType
-
-	// 3b. Read Value of Value
-	pD, err = parseData(r, pL)
-	if err != nil {
-		return fmt.Errorf("%s value: %w", ErrReadMetadata, err)
-	}
-
-	lE.Val = pD
-
-	// 4. Store Key:Value to Store
-	fmt.Printf("LocalEntry: %+v\n", lE)
-
-	return nil
 }
 
 func parseData(r *bufio.Reader, pL *ParseLength) (any, error) {
