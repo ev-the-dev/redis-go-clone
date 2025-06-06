@@ -116,9 +116,30 @@ func parseData(r *bufio.Reader, pL *ParseLength) (any, error) {
 	switch pL.ValType {
 	case StringEncoded:
 		return parseStringData(r, pL)
+	case ListEncoded:
+		return parseListData(r, pL)
 	default:
 		return nil, fmt.Errorf("%s unsupported ValueType: %d", ErrParseDataPrefix, pL.ValType)
 	}
+}
+
+func parseListData(r *bufio.Reader, pL *ParseLength) ([]string, error) {
+	list := make([]string, pL.Length)
+	for range pL.Length {
+		p, err := parseLengthEncoded(r, StringEncoded)
+		if err != nil {
+			return nil, fmt.Errorf("%s list: %w", ErrParseDataPrefix, err)
+		}
+
+		s, err := parseStringData(r, p)
+		if err != nil {
+			return nil, fmt.Errorf("%s list: %w", ErrParseDataPrefix, err)
+		}
+
+		list = append(list, s)
+	}
+
+	return list, nil
 }
 
 func parseStringData(r *bufio.Reader, pL *ParseLength) (string, error) {
@@ -133,14 +154,14 @@ func parseStringData(r *bufio.Reader, pL *ParseLength) (string, error) {
 		case SpecialInt16:
 			b := make([]byte, 2)
 			if _, err := io.ReadFull(r, b); err != nil {
-				return "", fmt.Errorf("%s string: special int16 %w", ErrParseDataPrefix, err)
+				return "", fmt.Errorf("%s string: special int16: %w", ErrParseDataPrefix, err)
 			}
 			num := int16(binary.BigEndian.Uint16(b))
 			return strconv.Itoa(int(num)), nil
 		case SpecialInt32:
 			b := make([]byte, 4)
 			if _, err := io.ReadFull(r, b); err != nil {
-				return "", fmt.Errorf("%s string: special int32 %w", ErrParseDataPrefix, err)
+				return "", fmt.Errorf("%s string: special int32: %w", ErrParseDataPrefix, err)
 			}
 			num := int32(binary.BigEndian.Uint32(b))
 			return strconv.Itoa(int(num)), nil
