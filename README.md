@@ -125,6 +125,8 @@ Here's an example of how one of these fields look like in the RDB file with the 
 
 There can be ***n*** number of DB selectors. Each section starts with `0xFE` op code followed by a byte signifying the DB number -- i.e. `fe 00` = DB number 00.
 
+After the `0xFE` code, there will be an `0xFB` op code to indicate the hash and expire hash table sizes subsequently.
+
 Each DB section will contain series of records with a specific order of data:
 1. `0xFC` or `0xFD`: [Expire times](#111-sections). Represented in little-endian I believe (reverse order of bytes to read the number value properly). Optional?
 2. [*Value Type*](#1a1-value-type): 1 byte flag indicating type (string, list, hash).
