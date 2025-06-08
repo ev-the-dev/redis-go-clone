@@ -37,6 +37,10 @@ func Load(path string, s *store.Store) error {
 	}
 
 	// 3. Database Selections
+	err = readDatabases(r, s)
+	if err != nil {
+		return err
+	}
 
 	// 4. Footer
 
@@ -70,6 +74,7 @@ func readMetadata(r *bufio.Reader) error {
 
 		// If a DB marker is found, then we've finished reading from the metadata section
 		if b == 0xFE {
+			r.UnreadByte()
 			return nil
 		}
 
@@ -115,6 +120,48 @@ func readMetadata(r *bufio.Reader) error {
 		// 4. Store Key:Value to Store
 		fmt.Printf("LocalEntry: %+v\n", lE)
 	}
+}
+
+func readDatabases(r *bufio.Reader, s *store.Store) error {
+	// 1a. Read 0xFE OP Code
+	b, err := r.ReadByte()
+	if err != nil {
+		return fmt.Errorf("%s file read: database: 0xFE byte: %w", ErrLoadPrefix, err)
+	}
+
+	if b != 0xFE {
+		return fmt.Errorf("%s file read: database: 0xFE byte: got 0x%X", ErrLoadPrefix, b)
+	}
+
+	// 1b. Read DB Number
+	dbNum, err := r.ReadByte()
+	if err != nil {
+		return fmt.Errorf("%s file read: database: number: %w", ErrLoadPrefix, err)
+	}
+
+	fmt.Printf("Database Number (%d)\n", uint32(dbNum))
+
+	// 2a. Read 0xFB OP Code
+	b, err = r.ReadByte()
+	if err != nil {
+		return fmt.Errorf("%s file read: database: 0xFB byte: %w", ErrLoadPrefix, err)
+	}
+
+	if b != 0xFB {
+		return fmt.Errorf("%s file read: database: 0xFB byte: expected 0xFB but got 0x%X", ErrLoadPrefix, b)
+	}
+
+	// 2b. Read Size of Hash & Expire Table
+	l := make([]byte, 2)
+	if _, err := io.ReadFull(r, l); err != nil {
+		return fmt.Errorf("%s file read: database: 0xFB byte: hash and expire table: %w", ErrLoadPrefix, err)
+	}
+
+	fmt.Printf("Hash Table Size (%d)\nExpire Table Size (%d)\n", uint32(l[0]), uint32(l[1]))
+
+	// 3. Read Main DB Data
+
+	return nil
 }
 
 func parseData(r *bufio.Reader, pL *ParseLength) (any, error) {
@@ -182,7 +229,6 @@ func parseStringData(r *bufio.Reader, pL *ParseLength) (string, error) {
 		return "", fmt.Errorf("%s string: read full: %w", ErrParseDataPrefix, err)
 	}
 
-	fmt.Printf("STRING::: %v\n", string(b))
 	return string(b), nil
 }
 
