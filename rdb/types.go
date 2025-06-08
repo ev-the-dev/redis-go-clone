@@ -7,6 +7,7 @@ const (
 	ErrLengthEncodePrefix        ErrPrefix = "rdb: parse: length encoding:"
 	ErrParseDataPrefix           ErrPrefix = "rdb: parse: data:"
 	ErrReadMetadata              ErrPrefix = "rdb: read: metadata:"
+	ErrReadDatabase              ErrPrefix = "rdb: read: database:"
 	ErrSpecialLengthEncodePrefix ErrPrefix = "rdb: parse: length encoding: special format:"
 )
 

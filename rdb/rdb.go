@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/ev-the-dev/redis-go-clone/store"
 )
@@ -48,6 +49,7 @@ func Load(path string, s *store.Store) error {
 }
 
 type LocalEntry struct {
+	Expire  time.Time
 	Key     any
 	KeyType ValueType
 	Val     any
@@ -118,7 +120,7 @@ func readMetadata(r *bufio.Reader) error {
 		lE.Val = pD
 
 		// 4. Store Key:Value to Store
-		fmt.Printf("LocalEntry: %+v\n", lE)
+		fmt.Printf("Metadata Entry: %+v\n", lE)
 	}
 }
 
@@ -126,17 +128,17 @@ func readDatabases(r *bufio.Reader, s *store.Store) error {
 	// 1a. Read 0xFE OP Code
 	b, err := r.ReadByte()
 	if err != nil {
-		return fmt.Errorf("%s file read: database: 0xFE byte: %w", ErrLoadPrefix, err)
+		return fmt.Errorf("%s 0xFE byte: %w", ErrReadDatabase, err)
 	}
 
 	if b != 0xFE {
-		return fmt.Errorf("%s file read: database: 0xFE byte: got 0x%X", ErrLoadPrefix, b)
+		return fmt.Errorf("%s 0xFE byte: got 0x%X", ErrReadDatabase, b)
 	}
 
 	// 1b. Read DB Number
 	dbNum, err := r.ReadByte()
 	if err != nil {
-		return fmt.Errorf("%s file read: database: number: %w", ErrLoadPrefix, err)
+		return fmt.Errorf("%s DB number: %w", ErrReadDatabase, err)
 	}
 
 	fmt.Printf("Database Number (%d)\n", uint32(dbNum))
@@ -144,22 +146,80 @@ func readDatabases(r *bufio.Reader, s *store.Store) error {
 	// 2a. Read 0xFB OP Code
 	b, err = r.ReadByte()
 	if err != nil {
-		return fmt.Errorf("%s file read: database: 0xFB byte: %w", ErrLoadPrefix, err)
+		return fmt.Errorf("%s 0xFB byte: %w", ErrReadDatabase, err)
 	}
 
 	if b != 0xFB {
-		return fmt.Errorf("%s file read: database: 0xFB byte: expected 0xFB but got 0x%X", ErrLoadPrefix, b)
+		return fmt.Errorf("%s 0xFB byte: expected 0xFB but got 0x%X", ErrReadDatabase, b)
 	}
 
 	// 2b. Read Size of Hash & Expire Table
-	l := make([]byte, 2)
-	if _, err := io.ReadFull(r, l); err != nil {
-		return fmt.Errorf("%s file read: database: 0xFB byte: hash and expire table: %w", ErrLoadPrefix, err)
+	hashBytes := make([]byte, 2)
+	if _, err := io.ReadFull(r, hashBytes); err != nil {
+		return fmt.Errorf("%s 0xFB byte: hash and expire table: %w", ErrReadDatabase, err)
 	}
 
-	fmt.Printf("Hash Table Size (%d)\nExpire Table Size (%d)\n", uint32(l[0]), uint32(l[1]))
+	fmt.Printf("Hash Table Size (%d)\nExpire Table Size (%d)\n", uint32(hashBytes[0]), uint32(hashBytes[1]))
 
+	lE := &LocalEntry{}
 	// 3. Read Main DB Data
+	b, err = r.ReadByte()
+	if err != nil {
+		return fmt.Errorf("%s first record byte: %w", ErrReadDatabase, err)
+	}
+
+	// 3a. Read Optional Expiry
+	switch b {
+	case 0xFD: // Unix Seconds Timestamp, read 4 bytes, little-endian
+		timeBytes := make([]byte, 4)
+		if _, err := io.ReadFull(r, timeBytes); err != nil {
+			return fmt.Errorf("%s 0xFD byte: %w", ErrReadDatabase, err)
+		}
+		lE.Expire = time.Unix(int64(binary.LittleEndian.Uint64(timeBytes)), 0)
+	case 0xFC: // Unix Milliseconds Timestamp, read 8 bytes, little-endian
+		timeBytes := make([]byte, 8)
+		if _, err := io.ReadFull(r, timeBytes); err != nil {
+			return fmt.Errorf("%s 0xFC byte: %w", ErrReadDatabase, err)
+		}
+		lE.Expire = time.UnixMilli(int64(binary.LittleEndian.Uint64(timeBytes)))
+	default: // Unread byte and handle afterwards
+		r.UnreadByte()
+	}
+
+	// 3b. Read ValueType
+	vt, err := r.ReadByte()
+	if err != nil {
+		return fmt.Errorf("%s ValueType: %w", ErrReadDatabase, err)
+	}
+
+	lE.ValType = ValueType(vt)
+
+	// 3c. Read String-Encoded Key
+	pL, err := parseLengthEncoded(r, StringEncoded)
+	if err != nil {
+		return fmt.Errorf("%s %w", ErrReadDatabase, err)
+	}
+
+	lE.KeyType = pL.ValType
+
+	pSD, err := parseStringData(r, pL)
+	if err != nil {
+		return fmt.Errorf("%s %w", ErrReadDatabase, err)
+	}
+
+	lE.Key = pSD
+
+	// 3d. Read ValueType Value
+	pL, err = parseLengthEncoded(r, lE.ValType)
+	pD, err := parseData(r, pL)
+	if err != nil {
+		return fmt.Errorf("%s %w", ErrReadDatabase, err)
+	}
+
+	lE.Val = pD
+
+	// 4. Store Key:Value to Store
+	fmt.Printf("Database Entry: %+v\n", lE)
 
 	return nil
 }
