@@ -8,6 +8,9 @@ import (
 	"strconv"
 )
 
+// NOTE: a potential change to this function could be having it return or mutate a LocalEntry
+// type and populate the appropriate field depending on the pL.ValueType. This would require
+// LocalEntry to also change its struct more akin to the resp.Message struct.
 func parseData(r *bufio.Reader, pL *ParseLength) (any, error) {
 	switch pL.ValType {
 	case StringEncoded:
@@ -100,13 +103,13 @@ func parseLengthEncoded(r *bufio.Reader, vt ValueType) (*ParseLength, error) {
 		}, nil
 	case 1: // 01xxxxxx
 		// Grab next 6 bits, plus read a byte and add those 8 bits to get the total length
-		l1 := b & 0x3F
+		l := b & 0x3F
 		b, err = r.ReadByte()
 		if err != nil {
 			return nil, fmt.Errorf("%s case 1: %w", ErrLengthEncodePrefix, err)
 		}
 		// Can't do bit operations on this before alloc more mem. Each byte read from `ReadByte` only allocates 8 bits. We need at least 14 as per the protocol for this case. Need to ensure enough mem to shift by 8 bits so that way we can use the OR operator to "concat" the second byte's 8 bits onto the end.
-		lengthTotal := (uint32(l1)<<8 | uint32(b))
+		lengthTotal := (uint32(l)<<8 | uint32(b))
 		return &ParseLength{
 			IsSpecial: false,
 			Length:    lengthTotal,

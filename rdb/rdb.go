@@ -97,7 +97,7 @@ func readMetadata(r *bufio.Reader) error {
 		// 2a. Read Length-Encoded Descriptor
 		pL, err := parseLengthEncoded(r, StringEncoded)
 		if err != nil {
-			return fmt.Errorf("%s key: %w", ErrReadMetadata, err)
+			return fmt.Errorf("%s key type: %w", ErrReadMetadata, err)
 		}
 
 		lE.KeyType = pL.ValType
@@ -177,7 +177,7 @@ func readDatabases(r *bufio.Reader, s *store.Store) error {
 			return fmt.Errorf("%s record first byte: %w", ErrReadDatabase, err)
 		}
 
-		// 3a. Read Optional Expiry or Encoutner New DB or EOF
+		// 3a. Read Optional Expiry or Encounter New DB or EOF
 		switch b {
 		case 0xFD: // Unix Seconds Timestamp, read 4 bytes, little-endian
 			timeBytes := make([]byte, 4)
