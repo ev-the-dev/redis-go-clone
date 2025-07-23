@@ -12,10 +12,6 @@ import (
 	"github.com/ev-the-dev/redis-go-clone/resp"
 )
 
-// TODO:
-// 3. On startup load and parse RDB file defined in `dir` and `dbfilename`
-// 	a. NOTE: will need to support different persistence types later (not necessarily RDB)
-
 func (s *Server) handleConfigCommand(conn net.Conn, msg *resp.Message) {
 	// NOTE: if I need support just the `CONFIG` command this needs to change
 	if len(msg.Array) < 3 {

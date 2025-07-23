@@ -8,7 +8,7 @@ import (
 	"strconv"
 )
 
-// NOTE: a potential change to this function could be having it return or mutate a LocalEntry
+// NOTE: a potential improvement to this function could be having it return or mutate a LocalEntry
 // type and populate the appropriate field depending on the pL.ValueType. This would require
 // LocalEntry to also change its struct more akin to the resp.Message struct.
 func parseData(r *bufio.Reader, pL *ParseLength) (any, error) {
