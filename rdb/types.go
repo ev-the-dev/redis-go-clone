@@ -1,5 +1,15 @@
 package rdb
 
+import "time"
+
+type Entry struct {
+	Expire  time.Time
+	Key     any
+	KeyType ValueType
+	Val     any
+	ValType ValueType
+}
+
 type ErrPrefix string
 
 const (

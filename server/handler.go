@@ -52,6 +52,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 
 	for {
+		// Parse RESP command
 		msg, err := resp.Parse(reader)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
@@ -155,6 +156,7 @@ func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
+	// NOTE: I believe the keys always need to be 'strings'
 	keyMsg := msg.Array[1]
 	valMsg := msg.Array[2]
 

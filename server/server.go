@@ -23,6 +23,8 @@ func New(cfg *config.Config) *Server {
 
 	memStore := store.New()
 
+	// TODO: change this so `rdb.Load` accepts a channel to send data back to
+	// This way it doesn't depend on store directly
 	err := rdb.Load(filepath.Join(cfg.Dir, cfg.DBFilename), memStore)
 	if err != nil {
 		fmt.Printf("%s new: %v\n", ErrInitPrefix, err)

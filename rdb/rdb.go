@@ -56,14 +56,6 @@ func Load(path string, s *store.Store) error {
 	return nil
 }
 
-type LocalEntry struct {
-	Expire  time.Time
-	Key     any
-	KeyType ValueType
-	Val     any
-	ValType ValueType
-}
-
 func readHeader(r io.Reader) (string, error) {
 	header := make([]byte, 9)
 
@@ -92,7 +84,7 @@ func readMetadata(r *bufio.Reader) error {
 			return fmt.Errorf("%s file read: metadata: first byte: expected 0xFA but got 0x%X", ErrLoadPrefix, b)
 		}
 
-		lE := &LocalEntry{}
+		entry := &Entry{}
 		// 2. Begin Read Key
 		// 2a. Read Length-Encoded Descriptor
 		pL, err := parseLengthEncoded(r, StringEncoded)
@@ -100,7 +92,7 @@ func readMetadata(r *bufio.Reader) error {
 			return fmt.Errorf("%s key type: %w", ErrReadMetadata, err)
 		}
 
-		lE.KeyType = pL.ValType
+		entry.KeyType = pL.ValType
 
 		// 2b. Read Value of Key
 		pD, err := parseData(r, pL)
@@ -108,7 +100,7 @@ func readMetadata(r *bufio.Reader) error {
 			return fmt.Errorf("%s key: %w", ErrReadMetadata, err)
 		}
 
-		lE.Key = pD
+		entry.Key = pD
 
 		// 3. Begin Read Value
 		// 3a. Read Length-Encoded Descriptor
@@ -117,7 +109,7 @@ func readMetadata(r *bufio.Reader) error {
 			return fmt.Errorf("%s value: %w", ErrReadMetadata, err)
 		}
 
-		lE.ValType = pL.ValType
+		entry.ValType = pL.ValType
 
 		// 3b. Read Value of Value
 		pD, err = parseData(r, pL)
@@ -125,10 +117,10 @@ func readMetadata(r *bufio.Reader) error {
 			return fmt.Errorf("%s value: %w", ErrReadMetadata, err)
 		}
 
-		lE.Val = pD
+		entry.Val = pD
 
 		// 4. Store Key:Value to Store
-		fmt.Printf("Metadata Entry: %+v\n", lE)
+		fmt.Printf("Metadata Entry: %+v\n", entry)
 	}
 }
 
@@ -171,7 +163,7 @@ func readDatabases(r *bufio.Reader, s *store.Store) error {
 
 	// 3. Read Main DB Data
 	for {
-		lE := &LocalEntry{}
+		entry := &Entry{}
 		b, err = r.ReadByte()
 		if err != nil {
 			return fmt.Errorf("%s record first byte: %w", ErrReadDatabase, err)
@@ -184,13 +176,13 @@ func readDatabases(r *bufio.Reader, s *store.Store) error {
 			if _, err := io.ReadFull(r, timeBytes); err != nil {
 				return fmt.Errorf("%s 0xFD byte: %w", ErrReadDatabase, err)
 			}
-			lE.Expire = time.Unix(int64(binary.LittleEndian.Uint64(timeBytes)), 0)
+			entry.Expire = time.Unix(int64(binary.LittleEndian.Uint64(timeBytes)), 0)
 		case 0xFC: // Unix Milliseconds Timestamp, read 8 bytes, little-endian
 			timeBytes := make([]byte, 8)
 			if _, err := io.ReadFull(r, timeBytes); err != nil {
 				return fmt.Errorf("%s 0xFC byte: %w", ErrReadDatabase, err)
 			}
-			lE.Expire = time.UnixMilli(int64(binary.LittleEndian.Uint64(timeBytes)))
+			entry.Expire = time.UnixMilli(int64(binary.LittleEndian.Uint64(timeBytes)))
 		case 0xFE: // Old DB Ends, New Begins
 			r.UnreadByte()
 			return readDatabases(r, s)
@@ -208,7 +200,7 @@ func readDatabases(r *bufio.Reader, s *store.Store) error {
 			return fmt.Errorf("%s ValueType: %w", ErrReadDatabase, err)
 		}
 
-		lE.ValType = ValueType(vt)
+		entry.ValType = ValueType(vt)
 
 		// 3c. Read String-Encoded Key
 		pL, err := parseLengthEncoded(r, StringEncoded)
@@ -216,26 +208,26 @@ func readDatabases(r *bufio.Reader, s *store.Store) error {
 			return fmt.Errorf("%s %w", ErrReadDatabase, err)
 		}
 
-		lE.KeyType = pL.ValType
+		entry.KeyType = pL.ValType
 
 		pSD, err := parseStringData(r, pL)
 		if err != nil {
 			return fmt.Errorf("%s %w", ErrReadDatabase, err)
 		}
 
-		lE.Key = pSD
+		entry.Key = pSD
 
 		// 3d. Read ValueType Value
-		pL, err = parseLengthEncoded(r, lE.ValType)
+		pL, err = parseLengthEncoded(r, entry.ValType)
 		pD, err := parseData(r, pL)
 		if err != nil {
 			return fmt.Errorf("%s %w", ErrReadDatabase, err)
 		}
 
-		lE.Val = pD
+		entry.Val = pD
 
 		// 4. Store Key:Value to Store
-		fmt.Printf("Database Entry: %+v\n", lE)
+		fmt.Printf("Database Entry: %+v\n", entry)
 	}
 }
 
