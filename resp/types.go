@@ -61,7 +61,7 @@ type Message struct {
 	String  string
 }
 
-func (m *Message) GetString() (string, error) {
+func (m *Message) ConvStr() (string, error) {
 	switch m.Type {
 	case Integer:
 		return fmt.Sprint(m.Integer), nil

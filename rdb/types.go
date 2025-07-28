@@ -1,6 +1,9 @@
 package rdb
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type Entry struct {
 	Expire  time.Time

@@ -116,20 +116,21 @@ func (s *Server) handleGetCommand(conn net.Conn, msg *resp.Message) {
 
 	keyMsg := msg.Array[1]
 
-	key, err := keyMsg.GetString()
+	key, err := keyMsg.ConvStr()
 	if err != nil {
 		log.Printf("%s: GET: invalid key: %v", ErrCmdPrefix, err)
 		conn.Write([]byte(resp.EncodeSimpleErr("Invalid key type for `GET` command")))
 		return
 	}
 
-	record, exists := s.store.Get(key)
+	_, exists := s.store.Get(key)
 	if !exists {
 		conn.Write([]byte(resp.EncodeNullBulkString()))
 		return
 	}
 
-	conn.Write([]byte(resp.EncodeBulkString(record.Value)))
+	// TODO: Support encoding all the types (extract to func or new resp.Encode)
+	// conn.Write([]byte(resp.EncodeBulkString(record.Value)))
 	return
 }
 
@@ -160,17 +161,10 @@ func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
 	keyMsg := msg.Array[1]
 	valMsg := msg.Array[2]
 
-	key, err := keyMsg.GetString()
+	key, err := keyMsg.ConvStr()
 	if err != nil {
 		log.Printf("%s: SET: invalid key: %v", ErrCmdPrefix, err)
 		conn.Write([]byte(resp.EncodeSimpleErr("Invalid key type for `SET` command")))
-		return
-	}
-
-	val, err := valMsg.GetString()
-	if err != nil {
-		log.Printf("%s: SET: invalid value: %v", ErrCmdPrefix, err)
-		conn.Write([]byte(resp.EncodeSimpleErr("Invalid value type for `SET` command")))
 		return
 	}
 
@@ -190,10 +184,15 @@ func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
 		}
 	}
 
-	s.store.Set(key, val, opts.Expiry)
+	storeRecord, err := fromRESP(valMsg, opts.Expiry)
+	if err != nil {
+		log.Printf("%s: SET: %v", ErrCmdPrefix, err)
+	}
+	s.store.Set(key, storeRecord)
 
 	if opts.GET {
-		conn.Write([]byte(resp.EncodeBulkString(val)))
+		// TODO: Support encoding all the types
+		// conn.Write([]byte(resp.EncodeBulkString(val)))
 	} else {
 		conn.Write([]byte(resp.EncodeSimpleString("OK")))
 	}

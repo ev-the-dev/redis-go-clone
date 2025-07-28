@@ -45,15 +45,8 @@ func (s *Store) Get(k string) (*Record, bool) {
 	return &Record{}, false
 }
 
-func (s *Store) Set(k, v string, exp time.Time) {
+func (s *Store) Set(k string, v *Record) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.Data[k] = &Record{
-		ExpiresAt: exp,
-		Value:     v,
-	}
+	s.Data[k] = v
 }
-
-// TODO: create a `fromRESP` function that looks at the `Message` Type to determine
-// how to parse the values. This calls out to `NewString`, `NewList`, etc. and
-// can be called recursively: i.e. each iteration in `NewList` calls `fromRESP`.
