@@ -2,9 +2,11 @@ package server
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/ev-the-dev/redis-go-clone/config"
 	"github.com/ev-the-dev/redis-go-clone/rdb"
@@ -21,13 +23,9 @@ func New(cfg *config.Config) *Server {
 		cfg = config.New()
 	}
 
-	memStore := store.New()
-
-	// TODO: change this so `rdb.Load` accepts a channel to send data back to
-	// This way it doesn't depend on store directly
-	err := rdb.Load(filepath.Join(cfg.Dir, cfg.DBFilename), memStore)
+	memStore, err := initStore(cfg)
 	if err != nil {
-		fmt.Printf("%s new: %v\n", ErrInitPrefix, err)
+		log.Fatal(err)
 	}
 
 	return &Server{
@@ -48,11 +46,38 @@ func (s *Server) Start() {
 	for {
 		conn, err := l.Accept()
 		if err != nil {
-			fmt.Printf("%s client: %v\n", ErrConnPrefix, err.Error())
+			log.Printf("%s client: %v\n", ErrConnPrefix, err.Error())
 			continue
 		}
 
 		// TODO: Add a cancellation context
 		go s.handleConnection(conn)
+	}
+}
+
+func initStore(cfg *config.Config) (*store.Store, error) {
+	store := store.New()
+
+	entriesCh := make(chan *rdb.Entry, 10)
+	err := rdb.Load(filepath.Join(cfg.Dir, cfg.DBFilename), entriesCh)
+	if err != nil {
+		fmt.Printf("%s store init: %v\n", ErrInitPrefix, err)
+	}
+
+	for {
+		select {
+		case entry, ok := <-entriesCh:
+			if !ok {
+				return store, nil
+			}
+			storeRecord, err := fromRDB(entry)
+			if err != nil {
+				log.Printf("%s: store init: fromRDB: %v", ErrInitPrefix, err)
+			}
+			fmt.Printf("\n\nKEY: %s\nSTORE RECORD: \n%+v\n", entry.Key, storeRecord)
+			store.Set(entry.Key, storeRecord)
+		case <-time.After(2 * time.Second):
+			return nil, fmt.Errorf("%s store init: timeout", ErrInitPrefix)
+		}
 	}
 }

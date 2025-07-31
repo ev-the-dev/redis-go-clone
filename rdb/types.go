@@ -7,8 +7,7 @@ import (
 
 type Entry struct {
 	Expire  time.Time
-	Key     any
-	KeyType ValueType
+	Key     string
 	Val     any
 	ValType ValueType
 }

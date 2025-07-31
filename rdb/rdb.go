@@ -7,11 +7,9 @@ import (
 	"io"
 	"os"
 	"time"
-
-	"github.com/ev-the-dev/redis-go-clone/store"
 )
 
-func Load(path string, s *store.Store) error {
+func Load(path string, entriesCh chan<- *Entry) error {
 	file, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -20,6 +18,7 @@ func Load(path string, s *store.Store) error {
 		}
 		return fmt.Errorf("%s file load: %w", ErrLoadPrefix, err)
 	}
+	defer close(entriesCh)
 	defer file.Close()
 
 	r := bufio.NewReaderSize(file, 64*1024)
@@ -37,7 +36,7 @@ func Load(path string, s *store.Store) error {
 	}
 
 	// 3. Database Selections
-	err = readDatabases(r, s)
+	err = readDatabases(r, entriesCh)
 	if err != nil {
 		return err
 	}
@@ -92,15 +91,17 @@ func readMetadata(r *bufio.Reader) error {
 			return fmt.Errorf("%s key type: %w", ErrReadMetadata, err)
 		}
 
-		entry.KeyType = pL.ValType
+		if pL.ValType != StringEncoded {
+			return fmt.Errorf("%s key must be string: %w", ErrReadMetadata, err)
+		}
 
 		// 2b. Read Value of Key
-		pD, err := parseData(r, pL)
+		pSD, err := parseStringData(r, pL)
 		if err != nil {
 			return fmt.Errorf("%s key: %w", ErrReadMetadata, err)
 		}
 
-		entry.Key = pD
+		entry.Key = pSD
 
 		// 3. Begin Read Value
 		// 3a. Read Length-Encoded Descriptor
@@ -112,7 +113,7 @@ func readMetadata(r *bufio.Reader) error {
 		entry.ValType = pL.ValType
 
 		// 3b. Read Value of Value
-		pD, err = parseData(r, pL)
+		pD, err := parseData(r, pL)
 		if err != nil {
 			return fmt.Errorf("%s value: %w", ErrReadMetadata, err)
 		}
@@ -124,7 +125,7 @@ func readMetadata(r *bufio.Reader) error {
 	}
 }
 
-func readDatabases(r *bufio.Reader, s *store.Store) error {
+func readDatabases(r *bufio.Reader, eCh chan<- *Entry) error {
 	// 1a. Read 0xFE OP Code
 	b, err := r.ReadByte()
 	if err != nil {
@@ -185,7 +186,7 @@ func readDatabases(r *bufio.Reader, s *store.Store) error {
 			entry.Expire = time.UnixMilli(int64(binary.LittleEndian.Uint64(timeBytes)))
 		case 0xFE: // Old DB Ends, New Begins
 			r.UnreadByte()
-			return readDatabases(r, s)
+			return readDatabases(r, eCh)
 		case 0xFF: // End of RDB File
 			r.UnreadByte()
 			return nil
@@ -208,7 +209,9 @@ func readDatabases(r *bufio.Reader, s *store.Store) error {
 			return fmt.Errorf("%s %w", ErrReadDatabase, err)
 		}
 
-		entry.KeyType = pL.ValType
+		if pL.ValType != StringEncoded {
+			return fmt.Errorf("%s key must be string: %w", ErrReadDatabase, err)
+		}
 
 		pSD, err := parseStringData(r, pL)
 		if err != nil {
@@ -228,6 +231,7 @@ func readDatabases(r *bufio.Reader, s *store.Store) error {
 
 		// 4. Store Key:Value to Store
 		fmt.Printf("Database Entry: %+v\n", entry)
+		eCh <- entry
 	}
 }
 
