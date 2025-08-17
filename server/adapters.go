@@ -25,6 +25,7 @@ func fromRDB(e *rdb.Entry) (*store.Record, error) {
 		return nil, fmt.Errorf("%s unsupported rdb type (%s) for entry: %+v", ErrAdaptPrefix, e.ValType.String(), e)
 	}
 
+	// NOTE: If need be we could also return the Key here
 	return &store.Record{
 		ExpiresAt: e.Expire,
 		Type:      rT,

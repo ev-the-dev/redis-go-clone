@@ -123,15 +123,14 @@ func (s *Server) handleGetCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
-	_, exists := s.store.Get(key)
+	record, exists := s.store.Get(key)
 	if !exists {
 		conn.Write([]byte(resp.EncodeNullBulkString()))
 		return
 	}
 
 	// TODO: Support encoding all the types (extract to func or new resp.Encode)
-	// conn.Write([]byte(resp.EncodeBulkString(record.Value)))
-	return
+	conn.Write([]byte(resp.EncodeBulkString(record.Value.(string))))
 }
 
 func (s *Server) handleKeysCommand(conn net.Conn, msg *resp.Message) {

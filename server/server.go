@@ -61,7 +61,7 @@ func initStore(cfg *config.Config) (*store.Store, error) {
 	entriesCh := make(chan *rdb.Entry, 10)
 	err := rdb.Load(filepath.Join(cfg.Dir, cfg.DBFilename), entriesCh)
 	if err != nil {
-		fmt.Printf("%s store init: %v\n", ErrInitPrefix, err)
+		log.Printf("%s store init: %v\n", ErrInitPrefix, err)
 	}
 
 	for {
@@ -74,7 +74,6 @@ func initStore(cfg *config.Config) (*store.Store, error) {
 			if err != nil {
 				log.Printf("%s: store init: fromRDB: %v", ErrInitPrefix, err)
 			}
-			fmt.Printf("\n\nKEY: %s\nSTORE RECORD: \n%+v\n", entry.Key, storeRecord)
 			store.Set(entry.Key, storeRecord)
 		case <-time.After(2 * time.Second):
 			return nil, fmt.Errorf("%s store init: timeout", ErrInitPrefix)
