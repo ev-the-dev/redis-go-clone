@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"path/filepath"
 	"strings"
 
 	"github.com/ev-the-dev/redis-go-clone/resp"
@@ -139,12 +140,24 @@ func (s *Server) handleKeysCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
-	// pattern := msg.Array[1]
-	// TODO: handle glob patterns
+	patternMsg := msg.Array[1]
+	if patternMsg.Type != resp.SimpleString && patternMsg.Type != resp.BulkString {
+		conn.Write([]byte(resp.EncodeSimpleErr("`KEYS` pattern must be a string, i.e. '*'")))
+		return
+	}
+
+	pattern := patternMsg.String
 
 	result := make([]string, 0, len(msg.Array)*2)
 	for k := range s.store.Data {
-		result = append(result, resp.EncodeBulkString(k))
+		match, err := filepath.Match(pattern, k)
+		if err != nil {
+			conn.Write([]byte(resp.EncodeSimpleErr("Error matching pattern for `KEYS` command")))
+		}
+
+		if match {
+			result = append(result, resp.EncodeBulkString(k))
+		}
 	}
 
 	conn.Write([]byte(resp.EncodeArray(result...)))
