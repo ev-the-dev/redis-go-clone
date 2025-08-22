@@ -19,8 +19,22 @@ func EncodeArray(ss ...string) string {
 	return fmt.Sprintf("*%d\r\n%s", len(ss), s)
 }
 
+func EncodeBoolean(b bool) string {
+	bS := ""
+	if b {
+		bS = "t"
+	} else {
+		bS = "f"
+	}
+	return fmt.Sprintf("#%s\r\n", bS)
+}
+
 func EncodeBulkString(s string) string {
 	return fmt.Sprintf("$%d\r\n%s\r\n", len(s), s)
+}
+
+func EncodeInteger(n int) string {
+	return fmt.Sprintf(":%d\r\n", n)
 }
 
 // RESP2 Specific Type

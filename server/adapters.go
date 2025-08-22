@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ev-the-dev/redis-go-clone/rdb"
@@ -38,6 +39,7 @@ func fromRESP(m *resp.Message, expiry time.Time) (*store.Record, error) {
 
 	switch m.Type {
 	case resp.Array, resp.Sets:
+		// TODO: need to parse the `m.Array` into an array of `store.Record`s
 		v = m.Array
 	case resp.Booleans:
 		v = m.Boolean
@@ -58,4 +60,33 @@ func fromRESP(m *resp.Message, expiry time.Time) (*store.Record, error) {
 		Type:      m.Type,
 		Value:     v,
 	}, nil
+}
+
+func toRESPString(r *store.Record) (string, error) {
+	var b strings.Builder
+	switch r.Type {
+	case resp.Array, resp.Sets:
+		for _, v := range r.Value.([]*store.Record) {
+			nestedValue, err := toRESPString(v)
+			if err != nil {
+				return "", fmt.Errorf("%s unable to adapt nested array: %+v", ErrAdaptPrefix, v)
+			}
+			b.WriteString(nestedValue)
+		}
+	case resp.Booleans:
+		b.WriteString(resp.EncodeBoolean(r.Value.(bool)))
+	case resp.BulkString:
+		b.WriteString(resp.EncodeBulkString(r.Value.(string)))
+	case resp.SimpleString:
+		b.WriteString(resp.EncodeSimpleString(r.Value.(string)))
+	case resp.Integer:
+		b.WriteString(resp.EncodeInteger(r.Value.(int)))
+	case resp.Maps:
+		v = m.Map
+	case resp.Nulls:
+		v = nil
+	default:
+		return "", fmt.Errorf("%s unsupported type (%s) from store record: %+v", ErrAdaptPrefix, r.Type.String(), r)
+	}
+
 }
