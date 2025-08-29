@@ -42,6 +42,10 @@ func EncodeNullBulkString() string {
 	return fmt.Sprint("$-1\r\n")
 }
 
+func EncodeNulls() string {
+	return fmt.Sprintf("_\r\n")
+}
+
 func EncodeSimpleErr(s string) string {
 	return fmt.Sprintf("-ERR %s\r\n", s)
 }

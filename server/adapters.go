@@ -51,6 +51,7 @@ func fromRESP(m *resp.Message, expiry time.Time) (*store.Record, error) {
 	case resp.Integer:
 		v = m.Integer
 	case resp.Maps:
+		// TODO: adapt from map of messages to map of store records
 		v = m.Map
 	case resp.Nulls:
 		v = nil
@@ -95,6 +96,7 @@ func toRESPString(r *store.Record) (string, error) {
 			}
 			b.WriteString(nestedValue)
 		}
+		return resp.EncodeArray(b.String()), nil
 	case resp.Booleans:
 		b.WriteString(resp.EncodeBoolean(r.Value.(bool)))
 	case resp.BulkString:
@@ -104,9 +106,11 @@ func toRESPString(r *store.Record) (string, error) {
 	case resp.Integer:
 		b.WriteString(resp.EncodeInteger(r.Value.(int)))
 	case resp.Maps:
-		v = m.Map
+		for k, v := range r.Value.(map[string]*store.Record) {
+
+		}
 	case resp.Nulls:
-		v = nil
+		b.WriteString(resp.EncodeNulls())
 	default:
 		return "", fmt.Errorf("%s unsupported type (%s) from store record: %+v", ErrAdaptPrefix, r.Type.String(), r)
 	}
