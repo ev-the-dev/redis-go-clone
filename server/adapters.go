@@ -39,8 +39,11 @@ func fromRESP(m *resp.Message, expiry time.Time) (*store.Record, error) {
 
 	switch m.Type {
 	case resp.Array, resp.Sets:
-		// TODO: need to parse the `m.Array` into an array of `store.Record`s
-		v = m.Array
+		rS, err := fromRESPArrayToStoreArray(m, expiry)
+		if err != nil {
+			return nil, fmt.Errorf("%s from resp: %w", ErrAdaptPrefix, err)
+		}
+		v = rS
 	case resp.Booleans:
 		v = m.Boolean
 	case resp.BulkString, resp.SimpleString:
@@ -60,6 +63,25 @@ func fromRESP(m *resp.Message, expiry time.Time) (*store.Record, error) {
 		Type:      m.Type,
 		Value:     v,
 	}, nil
+}
+
+func fromRESPArrayToStoreArray(m *resp.Message, expiry time.Time) ([]*store.Record, error) {
+	if m.Type != resp.Array && m.Type != resp.Sets {
+		return nil, fmt.Errorf("%s trying to adapt from RESP (Array|Set) but got (%s)", ErrAdaptPrefix, m.Type.String())
+	}
+
+	rS := make([]*store.Record, len(m.Array))
+
+	for _, v := range m.Array {
+		sR, err := fromRESP(v, expiry)
+		if err != nil {
+			return nil, fmt.Errorf("%s from resp: array: %w", ErrAdaptPrefix, err)
+		}
+
+		rS = append(rS, sR)
+	}
+
+	return rS, nil
 }
 
 func toRESPString(r *store.Record) (string, error) {
@@ -89,4 +111,5 @@ func toRESPString(r *store.Record) (string, error) {
 		return "", fmt.Errorf("%s unsupported type (%s) from store record: %+v", ErrAdaptPrefix, r.Type.String(), r)
 	}
 
+	return b.String(), nil
 }
