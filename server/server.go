@@ -58,7 +58,13 @@ func (s *Server) Start() {
 func initStore(cfg *config.Config) (*store.Store, error) {
 	store := store.New()
 
+	// NOTE: It feels a bit weird to pass in a channel to rdb.Load() and have that
+	// Load method be responsible for closing it, but I'm not sure of a better way
+	// to handle the concurrenct communication otherwise.
 	entriesCh := make(chan *rdb.Entry, 10)
+	// TODO: I *believe* `rdb.Load` and its error handling should be wrapped
+	// inside of a go routine. This would improve the communication time
+	// between it and the for/select block below via the channel.
 	err := rdb.Load(filepath.Join(cfg.Dir, cfg.DBFilename), entriesCh)
 	if err != nil {
 		log.Printf("%s store init: %v\n", ErrInitPrefix, err)
