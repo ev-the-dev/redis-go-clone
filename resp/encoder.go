@@ -14,9 +14,9 @@ import (
 //
 // Although, perhaps that shouldn't be the concern of these functions.
 
-func EncodeArray(ss ...string) string {
+func EncodeArray(length int, ss ...string) string {
 	s := strings.Join(ss, "")
-	return fmt.Sprintf("*%d\r\n%s", len(ss), s)
+	return fmt.Sprintf("*%d\r\n%s", length, s)
 }
 
 func EncodeBoolean(b bool) string {
@@ -35,6 +35,10 @@ func EncodeBulkString(s string) string {
 
 func EncodeInteger(n int) string {
 	return fmt.Sprintf(":%d\r\n", n)
+}
+
+func EncodeMap(length int, m string) string {
+	return fmt.Sprintf("%%%d\r\n%s", length, m)
 }
 
 // RESP2 Specific Type

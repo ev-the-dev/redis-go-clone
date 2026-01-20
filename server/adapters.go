@@ -89,14 +89,15 @@ func toRESPString(r *store.Record) (string, error) {
 	var b strings.Builder
 	switch r.Type {
 	case resp.Array, resp.Sets:
-		for _, v := range r.Value.([]*store.Record) {
+		arrVal := r.Value.([]*store.Record)
+		for _, v := range arrVal {
 			nestedValue, err := toRESPString(v)
 			if err != nil {
 				return "", fmt.Errorf("%s unable to adapt nested array: %+v", ErrAdaptPrefix, v)
 			}
 			b.WriteString(nestedValue)
 		}
-		return resp.EncodeArray(b.String()), nil
+		return resp.EncodeArray(len(arrVal), b.String()), nil
 	case resp.Booleans:
 		b.WriteString(resp.EncodeBoolean(r.Value.(bool)))
 	case resp.BulkString:
@@ -106,9 +107,21 @@ func toRESPString(r *store.Record) (string, error) {
 	case resp.Integer:
 		b.WriteString(resp.EncodeInteger(r.Value.(int)))
 	case resp.Maps:
-		for k, v := range r.Value.(map[string]*store.Record) {
+		m := r.Value.(map[*store.Record]*store.Record)
+		for k, v := range m {
+			nestedKey, err := toRESPString(k)
+			if err != nil {
+				return "", fmt.Errorf("%s unable to adapt map key: %+v", ErrAdaptPrefix, k)
+			}
+			b.WriteString(nestedKey)
 
+			nestedValue, err := toRESPString(v)
+			if err != nil {
+				return "", fmt.Errorf("%s unable to adapt map value: %+v", ErrAdaptPrefix, v)
+			}
+			b.WriteString(nestedValue)
 		}
+		return resp.EncodeMap(len(m), b.String()), nil
 	case resp.Nulls:
 		b.WriteString(resp.EncodeNulls())
 	default:

@@ -45,7 +45,7 @@ func (s *Server) handleConfigGetCommand(conn net.Conn, msg *resp.Message) {
 		}
 	}
 
-	conn.Write([]byte(resp.EncodeArray(result...)))
+	conn.Write([]byte(resp.EncodeArray(len(result), result...)))
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
