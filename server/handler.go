@@ -190,7 +190,7 @@ func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
 
 	storeRecordKey, err := fromRESP(keyMsg, opts.Expiry)
 	if err != nil {
-		log.Printf("%s: SET: store key: %v", ErrCmdPrefix, err)
+		log.Printf("%s SET: store key: %v", ErrCmdPrefix, err)
 	}
 
 	if opts.KEEPTTL {
@@ -201,7 +201,7 @@ func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
 
 	storeRecordValue, err := fromRESP(valMsg, opts.Expiry)
 	if err != nil {
-		log.Printf("%s: SET: store value: %v", ErrCmdPrefix, err)
+		log.Printf("%s SET: store value: %v", ErrCmdPrefix, err)
 	}
 	s.store.Set(storeRecordKey, storeRecordValue)
 

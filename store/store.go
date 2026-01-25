@@ -1,6 +1,7 @@
 package store
 
 import (
+	"log"
 	"sync"
 	"time"
 
@@ -26,6 +27,8 @@ type StoreData struct {
 	Value *Record
 }
 
+// TODO: Should probably move mutex to the Data instead
+// Would need to add mutex to StoreData or Record
 type Store struct {
 	Data map[string]*StoreData
 	mu   sync.RWMutex
@@ -39,7 +42,7 @@ type Record struct {
 
 func New() *Store {
 	return &Store{
-		Data: make(map[*Record]*Record),
+		Data: make(map[string]*StoreData),
 	}
 }
 
@@ -48,24 +51,31 @@ func (s *Store) Get(k *Record) (*Record, bool) {
 	// NOTE: Might have to change how this data is accessed. Not sure
 	// If passing in something like a Map as a key will work to fetch
 	// the appropriate record. Perhaps hashes of all the data in the key?
-	item, exists := s.Data[k]
+	key, err := s.genKey(k)
+	if err != nil {
+		log.Printf("%s generate key: %v", ErrGetPrefix, err)
+		return nil, false
+	}
+
+	item, exists := s.Data[key]
 	if !exists {
 		s.mu.RUnlock()
 		return &Record{}, exists
 	}
 
-	isExpired := !item.ExpiresAt.IsZero() && time.Now().After(item.ExpiresAt)
+	isKeyExpired := !item.Key.ExpiresAt.IsZero() && time.Now().After(item.Key.ExpiresAt)
+	isValExpired := !item.Value.ExpiresAt.IsZero() && time.Now().After(item.Value.ExpiresAt)
 	s.mu.RUnlock()
 
-	if !isExpired {
-		return item, exists
+	if !isValExpired && !isKeyExpired {
+		return item.Value, exists
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	// Checking using write lock in case a write occurred that extended TTL between releasing the Read lock and acquiring this Write lock
-	if item, exists := s.Data[k]; exists && time.Now().After(item.ExpiresAt) {
-		delete(s.Data, k)
+	if item, exists := s.Data[key]; exists && time.Now().After(item.Value.ExpiresAt) {
+		delete(s.Data, key)
 	}
 
 	return &Record{}, false
@@ -75,4 +85,8 @@ func (s *Store) Set(k *Record, v *Record) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.Data[k] = v
+}
+
+func (s *Store) genKey(r *Record) (string, error) {
+
 }
