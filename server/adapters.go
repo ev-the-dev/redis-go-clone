@@ -51,7 +51,8 @@ func fromRESP(m *resp.Message, expiry time.Time) (*store.Record, error) {
 	case resp.Integer:
 		v = m.Integer
 	case resp.Maps:
-		// TODO: adapt from map of messages to map of store records
+		// TODO: Finish implementing
+		// rS, err := fromRESPMapToStoreMap(m, expiry)
 		v = m.Map
 	case resp.Nulls:
 		v = nil

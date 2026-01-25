@@ -7,8 +7,16 @@ import (
 	"github.com/ev-the-dev/redis-go-clone/resp"
 )
 
+// TODO:
+// NOTE:
+// Store.Data needs to have the key be of type 'string'.
+// The *Record embeds an expiry that would make it impossible
+// to GET any data in the store without knowing all the data
+// that the key is comprised off. Ergo, we need to make the key
+// the hash of JUST the *Record.Value (need to loop/recurse) to
+// ensure we're appending nested struct's *Record.Value as well
 type Store struct {
-	Data map[*Record]*Record
+	Data map[string]*Record
 	mu   sync.RWMutex
 }
 
