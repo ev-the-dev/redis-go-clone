@@ -8,7 +8,7 @@ import (
 )
 
 type Store struct {
-	Data map[string]*Record
+	Data map[*Record]*Record
 	mu   sync.RWMutex
 }
 
@@ -20,12 +20,15 @@ type Record struct {
 
 func New() *Store {
 	return &Store{
-		Data: make(map[string]*Record),
+		Data: make(map[*Record]*Record),
 	}
 }
 
-func (s *Store) Get(k string) (*Record, bool) {
+func (s *Store) Get(k *Record) (*Record, bool) {
 	s.mu.RLock()
+	// NOTE: Might have to change how this data is accessed. Not sure
+	// If passing in something like a Map as a key will work to fetch
+	// the appropriate record. Perhaps hashes of all the data in the key?
 	item, exists := s.Data[k]
 	if !exists {
 		s.mu.RUnlock()
@@ -49,7 +52,7 @@ func (s *Store) Get(k string) (*Record, bool) {
 	return &Record{}, false
 }
 
-func (s *Store) Set(k string, v *Record) {
+func (s *Store) Set(k *Record, v *Record) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.Data[k] = v

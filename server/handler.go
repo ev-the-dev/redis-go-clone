@@ -169,17 +169,11 @@ func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
-	// NOTE: I believe the keys always need to be 'strings'
+	// NOTE: Previously tried setting all store data keys as Go strings, commit: 476b4cc6b2b9
 	keyMsg := msg.Array[1]
 	valMsg := msg.Array[2]
 
-	key, err := keyMsg.ConvStr()
-	if err != nil {
-		log.Printf("%s: SET: invalid key: %v", ErrCmdPrefix, err)
-		conn.Write([]byte(resp.EncodeSimpleErr("Invalid key type for `SET` command")))
-		return
-	}
-
+	var err error
 	opts := &SetOptions{}
 	if len(msg.Array) > 3 {
 		opts, err = parseSETOptions(msg.Array[3:])
@@ -190,21 +184,30 @@ func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
 		}
 	}
 
+	storeRecordKey, err := fromRESP(keyMsg, opts.Expiry)
+	if err != nil {
+		log.Printf("%s: SET: store key: %v", ErrCmdPrefix, err)
+	}
+
 	if opts.KEEPTTL {
-		if record, exists := s.store.Get(key); exists {
+		if record, exists := s.store.Get(storeRecordKey); exists {
 			opts.Expiry = record.ExpiresAt
 		}
 	}
 
-	storeRecord, err := fromRESP(valMsg, opts.Expiry)
+	storeRecordValue, err := fromRESP(valMsg, opts.Expiry)
 	if err != nil {
-		log.Printf("%s: SET: %v", ErrCmdPrefix, err)
+		log.Printf("%s: SET: store value: %v", ErrCmdPrefix, err)
 	}
-	s.store.Set(key, storeRecord)
+	s.store.Set(storeRecordKey, storeRecordValue)
 
 	if opts.GET {
-		// TODO: Support encoding all the types
-		// conn.Write([]byte(resp.EncodeBulkString(val)))
+		respVal, err := toRESPString(storeRecordValue)
+		if err != nil {
+			log.Printf("%s: SET: GET value: %v", ErrCmdPrefix, err)
+			conn.Write([]byte(resp.EncodeSimpleErr("Unable to retrieve SET value")))
+		}
+		conn.Write([]byte(respVal))
 	} else {
 		conn.Write([]byte(resp.EncodeSimpleString("OK")))
 	}
