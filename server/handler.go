@@ -160,7 +160,7 @@ func (s *Server) handleKeysCommand(conn net.Conn, msg *resp.Message) {
 		}
 	}
 
-	conn.Write([]byte(resp.EncodeArray(result...)))
+	conn.Write([]byte(resp.EncodeArray(len(result), result...)))
 }
 
 func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {

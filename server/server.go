@@ -78,7 +78,7 @@ func initStore(cfg *config.Config) (*store.Store, error) {
 				log.Printf("%s: store init: fromRDB: %v", ErrInitPrefix, err)
 			}
 			store.Set(entry.Key, storeRecord)
-		case <-time.After(2 * time.Second):
+		case <-time.After(3 * time.Second):
 			return nil, fmt.Errorf("%s store init: timeout", ErrInitPrefix)
 		}
 	}
