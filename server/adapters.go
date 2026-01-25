@@ -107,21 +107,11 @@ func toRESPString(r *store.Record) (string, error) {
 	case resp.Integer:
 		b.WriteString(resp.EncodeInteger(r.Value.(int)))
 	case resp.Maps:
-		m := r.Value.(map[*store.Record]*store.Record)
-		for k, v := range m {
-			nestedKey, err := toRESPString(k)
-			if err != nil {
-				return "", fmt.Errorf("%s unable to adapt map key: %+v", ErrAdaptPrefix, k)
-			}
-			b.WriteString(nestedKey)
-
-			nestedValue, err := toRESPString(v)
-			if err != nil {
-				return "", fmt.Errorf("%s unable to adapt map value: %+v", ErrAdaptPrefix, v)
-			}
-			b.WriteString(nestedValue)
+		s, err := toRESPStringFromStoreMap(b, r.Value.(map[*store.Record]*store.Record))
+		if err != nil {
+			return "", fmt.Errorf("%s to resp: %w", ErrAdaptPrefix, err)
 		}
-		return resp.EncodeMap(len(m), b.String()), nil
+		b.WriteString(s)
 	case resp.Nulls:
 		b.WriteString(resp.EncodeNulls())
 	default:
@@ -129,4 +119,21 @@ func toRESPString(r *store.Record) (string, error) {
 	}
 
 	return b.String(), nil
+}
+
+func toRESPStringFromStoreMap(b strings.Builder, m map[*store.Record]*store.Record) (string, error) {
+	for k, v := range m {
+		nestedKey, err := toRESPString(k)
+		if err != nil {
+			return "", fmt.Errorf("%s unable to adapt map key: %+v", ErrAdaptPrefix, k)
+		}
+		b.WriteString(nestedKey)
+
+		nestedValue, err := toRESPString(v)
+		if err != nil {
+			return "", fmt.Errorf("%s unable to adapt map value: %+v", ErrAdaptPrefix, v)
+		}
+		b.WriteString(nestedValue)
+	}
+	return resp.EncodeMap(len(m), b.String()), nil
 }
