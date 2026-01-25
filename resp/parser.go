@@ -21,6 +21,8 @@ func Parse(r *bufio.Reader) (*Message, error) {
 		return parseBulkString(r)
 	case '*': // Array
 		return parseArray(r)
+	case '%': // Map
+		return parseMap(r)
 	default:
 		return nil, fmt.Errorf("%s unknown type: %q", ErrProtocolPrefix, firstByte)
 	}
@@ -29,10 +31,13 @@ func Parse(r *bufio.Reader) (*Message, error) {
 func parseArray(r *bufio.Reader) (*Message, error) {
 	arrLen, err := r.ReadString('\n')
 	if err != nil {
-		return nil, fmt.Errorf("%s array: length: %w", ErrParsePrefix, err)
+		return nil, fmt.Errorf("%s array: read length: %w", ErrParsePrefix, err)
 	}
 	arrLen = strings.TrimSpace(arrLen)
 	length, err := strconv.Atoi(arrLen)
+	if err != nil {
+		return nil, fmt.Errorf("%s array: conv length: %w", ErrParsePrefix, err)
+	}
 
 	// NOTE: not entirely sure the distinction yet between
 	// a null array and zero-lengthed array from a RESP
@@ -95,6 +100,49 @@ func parseBulkString(r *bufio.Reader) (*Message, error) {
 		Type:   BulkString,
 		Length: length,
 		String: string(data),
+	}, nil
+}
+
+func parseMap(r *bufio.Reader) (*Message, error) {
+	mLen, err := r.ReadString('\n')
+	if err != nil {
+		return nil, fmt.Errorf("%s map: read length: %w", ErrParsePrefix, err)
+	}
+
+	mLen = strings.TrimSpace(mLen)
+	length, err := strconv.Atoi(mLen)
+	if err != nil {
+		return nil, fmt.Errorf("%s map: conv length: %w", ErrParsePrefix, err)
+	}
+
+	// NOTE: not entirely sure if this is the appropriate way to handle
+	// a "zero" length'd map.
+	if length <= 0 {
+		return &Message{
+			Type:   Maps,
+			Length: length,
+		}, nil
+	}
+
+	m := make(map[*Message]*Message)
+	for range length {
+		// QUESTION: Will this work for extracting the appropriate key:value pair?
+		key, err := Parse(r)
+		if err != nil {
+			return nil, fmt.Errorf("%s map: recursion: key: %w", ErrParsePrefix, err)
+		}
+		val, err := Parse(r)
+		if err != nil {
+			return nil, fmt.Errorf("%s map: recursion: value: %w", ErrParsePrefix, err)
+		}
+
+		m[key] = val
+	}
+
+	return &Message{
+		Type:   Maps,
+		Map:    m,
+		Length: length,
 	}, nil
 }
 

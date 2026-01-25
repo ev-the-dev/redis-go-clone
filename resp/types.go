@@ -57,7 +57,7 @@ type Message struct {
 	Boolean bool
 	Integer int
 	Length  int
-	Map     map[string]*Message
+	Map     map[*Message]*Message
 	String  string
 }
 
