@@ -115,6 +115,10 @@ func (s *Server) handleGetCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
+	// NOTE: Previously tried setting all store data keys as Go strings, commit: 476b4cc6b2b9
+	// TODO: Need to revisit this once I figure out the best approach to storing
+	// data keys as predictable strings, i.e. -- without Expiry data or any other
+	// arbitrary data that is included in the key *Record
 	keyMsg := msg.Array[1]
 
 	key, err := keyMsg.ConvStr()

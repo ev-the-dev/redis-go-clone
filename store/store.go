@@ -15,8 +15,19 @@ import (
 // that the key is comprised off. Ergo, we need to make the key
 // the hash of JUST the *Record.Value (need to loop/recurse) to
 // ensure we're appending nested struct's *Record.Value as well
+//
+// Additionally the structure needs to change to accomadate
+// simple keys that the user can utilize, with maintaining
+// the integrity of Expirations.
+//
+// Perhaps something like:
+type StoreData struct {
+	Key   *Record
+	Value *Record
+}
+
 type Store struct {
-	Data map[string]*Record
+	Data map[string]*StoreData
 	mu   sync.RWMutex
 }
 
