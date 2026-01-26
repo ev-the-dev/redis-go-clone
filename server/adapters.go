@@ -41,7 +41,7 @@ func fromRESP(m *resp.Message, expiry time.Time) (*store.Record, error) {
 	case resp.Array, resp.Sets:
 		rS, err := fromRESPArrayToStoreArray(m, expiry)
 		if err != nil {
-			return nil, fmt.Errorf("%s from resp: %w", ErrAdaptPrefix, err)
+			return nil, fmt.Errorf("%s from resp: case array: %w", ErrAdaptPrefix, err)
 		}
 		v = rS
 	case resp.Booleans:
@@ -51,9 +51,11 @@ func fromRESP(m *resp.Message, expiry time.Time) (*store.Record, error) {
 	case resp.Integer:
 		v = m.Integer
 	case resp.Maps:
-		// TODO: Finish implementing
-		rS, err := fromRESPMapToStoreMap(m, expiry)
-		v = m.Map
+		sM, err := fromRESPMapToStoreMap(m, expiry)
+		if err != nil {
+			return nil, fmt.Errorf("%s from resp: case map: %w", ErrAdaptPrefix, err)
+		}
+		v = sM
 	case resp.Nulls:
 		v = nil
 	default:
