@@ -1,6 +1,9 @@
 package resp
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type ErrPrefix string
 
@@ -57,7 +60,7 @@ type Message struct {
 	Boolean bool
 	Integer int
 	Length  int
-	Map     map[*Message]*Message
+	Map     map[string]*Message // <-- complex keys are serialized to strings
 	String  string
 }
 
@@ -69,5 +72,40 @@ func (m *Message) ConvStr() (string, error) {
 		return m.String, nil
 	default:
 		return "", fmt.Errorf("%s converting %s to string", ErrTypePrefix, m.Type.String())
+	}
+}
+
+func (m *Message) SerializeKey() (string, error) {
+	switch m.Type {
+	case Integer:
+		return fmt.Sprintf("int:%d", m.Integer), nil
+	case Booleans:
+		return fmt.Sprintf("bool:%t", m.Boolean), nil
+	case BulkString, SimpleString:
+		return m.String, nil
+	case Nulls:
+		return "null", nil
+	case Array:
+		var parts []string
+		for _, elem := range m.Array {
+			k, err := elem.SerializeKey()
+			if err != nil {
+				return "", fmt.Errorf("%s serialize array key of type (%s) to string", ErrTypePrefix, m.Type.String())
+			}
+			parts = append(parts, k)
+		}
+		return fmt.Sprintf("arr:[%s]", strings.Join(parts, ",")), nil
+	case Maps:
+		var parts []string
+		for k, v := range m.Map {
+			key, err := k.SerializeKey()
+			if err != nil {
+				return "", fmt.Errorf("%s serialize map key of type (%s) to string", ErrTypePrefix, m.Type.String())
+			}
+			parts = append(parts, k, v)
+		}
+		return fmt.Sprintf("map:{%s}", strings.Join(parts, ",")), nil
+	default:
+		return "", fmt.Errorf("%s serialize key of type (%s) to string", ErrTypePrefix, m.Type.String())
 	}
 }

@@ -70,7 +70,7 @@ func fromRESP(m *resp.Message, expiry time.Time) (*store.Record, error) {
 }
 
 func fromRESPArrayToStoreArray(m *resp.Message, expiry time.Time) ([]*store.Record, error) {
-	if m.Type != resp.Array || m.Type != resp.Sets {
+	if m.Type != resp.Array && m.Type != resp.Sets {
 		return nil, fmt.Errorf("%s trying to adapt from RESP (Array|Set) but got (%s)", ErrAdaptPrefix, m.Type.String())
 	}
 
@@ -87,24 +87,19 @@ func fromRESPArrayToStoreArray(m *resp.Message, expiry time.Time) ([]*store.Reco
 	return rS, nil
 }
 
-func fromRESPMapToStoreMap(m *resp.Message, expiry time.Time) (map[*store.Record]*store.Record, error) {
+func fromRESPMapToStoreMap(m *resp.Message, expiry time.Time) (map[string]*store.Record, error) {
 	if m.Type != resp.Maps {
 		return nil, fmt.Errorf("%s trying to adapt from RESP (Map) but got (%s)", ErrAdaptPrefix, m.Type.String())
 	}
 
-	sM := make(map[*store.Record]*store.Record)
+	sM := make(map[string]*store.Record)
 	for k, v := range m.Map {
-		storeKey, err := fromRESP(k, expiry)
-		if err != nil {
-			return nil, fmt.Errorf("%s from resp: map key: %w", ErrAdaptPrefix, err)
-		}
-
 		storeValue, err := fromRESP(v, expiry)
 		if err != nil {
 			return nil, fmt.Errorf("%s from resp: map value: %w", ErrAdaptPrefix, err)
 		}
 
-		sM[storeKey] = storeValue
+		sM[k] = storeValue
 	}
 
 	return sM, nil

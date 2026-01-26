@@ -124,19 +124,25 @@ func parseMap(r *bufio.Reader) (*Message, error) {
 		}, nil
 	}
 
-	m := make(map[*Message]*Message)
+	m := make(map[string]*Message)
 	for range length {
 		// QUESTION: Will this work for extracting the appropriate key:value pair?
-		key, err := Parse(r)
+		keyMsg, err := Parse(r)
 		if err != nil {
 			return nil, fmt.Errorf("%s map: recursion: key: %w", ErrParsePrefix, err)
 		}
-		val, err := Parse(r)
+
+		valMsg, err := Parse(r)
 		if err != nil {
 			return nil, fmt.Errorf("%s map: recursion: value: %w", ErrParsePrefix, err)
 		}
 
-		m[key] = val
+		key, err := keyMsg.SerializeKey()
+		if err != nil {
+			return nil, fmt.Errorf("%s map: serialize key: %w", ErrParsePrefix, err)
+		}
+
+		m[key] = valMsg
 	}
 
 	return &Message{
