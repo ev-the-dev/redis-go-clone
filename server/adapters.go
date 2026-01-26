@@ -52,7 +52,7 @@ func fromRESP(m *resp.Message, expiry time.Time) (*store.Record, error) {
 		v = m.Integer
 	case resp.Maps:
 		// TODO: Finish implementing
-		// rS, err := fromRESPMapToStoreMap(m, expiry)
+		rS, err := fromRESPMapToStoreMap(m, expiry)
 		v = m.Map
 	case resp.Nulls:
 		v = nil
@@ -68,12 +68,11 @@ func fromRESP(m *resp.Message, expiry time.Time) (*store.Record, error) {
 }
 
 func fromRESPArrayToStoreArray(m *resp.Message, expiry time.Time) ([]*store.Record, error) {
-	if m.Type != resp.Array && m.Type != resp.Sets {
+	if m.Type != resp.Array || m.Type != resp.Sets {
 		return nil, fmt.Errorf("%s trying to adapt from RESP (Array|Set) but got (%s)", ErrAdaptPrefix, m.Type.String())
 	}
 
 	rS := make([]*store.Record, len(m.Array))
-
 	for _, v := range m.Array {
 		sR, err := fromRESP(v, expiry)
 		if err != nil {
@@ -84,6 +83,29 @@ func fromRESPArrayToStoreArray(m *resp.Message, expiry time.Time) ([]*store.Reco
 	}
 
 	return rS, nil
+}
+
+func fromRESPMapToStoreMap(m *resp.Message, expiry time.Time) (map[*store.Record]*store.Record, error) {
+	if m.Type != resp.Maps {
+		return nil, fmt.Errorf("%s trying to adapt from RESP (Map) but got (%s)", ErrAdaptPrefix, m.Type.String())
+	}
+
+	sM := make(map[*store.Record]*store.Record)
+	for k, v := range m.Map {
+		storeKey, err := fromRESP(k, expiry)
+		if err != nil {
+			return nil, fmt.Errorf("%s from resp: map key: %w", ErrAdaptPrefix, err)
+		}
+
+		storeValue, err := fromRESP(v, expiry)
+		if err != nil {
+			return nil, fmt.Errorf("%s from resp: map value: %w", ErrAdaptPrefix, err)
+		}
+
+		sM[storeKey] = storeValue
+	}
+
+	return sM, nil
 }
 
 func toRESPString(r *store.Record) (string, error) {
