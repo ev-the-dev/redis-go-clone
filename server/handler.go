@@ -115,10 +115,6 @@ func (s *Server) handleGetCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
-	// NOTE: Previously tried setting all store data keys as Go strings, commit: 476b4cc6b2b9
-	// TODO: Need to revisit this once I figure out the best approach to storing
-	// data keys as predictable strings, i.e. -- without Expiry data or any other
-	// arbitrary data that is included in the key *Record
 	keyMsg := msg.Array[1]
 
 	key, err := keyMsg.ConvStr()
@@ -134,8 +130,13 @@ func (s *Server) handleGetCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
-	// TODO: Support encoding all the types (extract to func or new resp.Encode)
-	conn.Write([]byte(resp.EncodeBulkString(record.Value.(string))))
+	respVal, err := toRESPString(record)
+	if err != nil {
+		log.Printf("%s: GET: resp string: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Unable to retrieve SET value")))
+	}
+
+	conn.Write([]byte(respVal))
 }
 
 func (s *Server) handleKeysCommand(conn net.Conn, msg *resp.Message) {
@@ -173,11 +174,16 @@ func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
-	// NOTE: Previously tried setting all store data keys as Go strings, commit: 476b4cc6b2b9
 	keyMsg := msg.Array[1]
 	valMsg := msg.Array[2]
 
-	var err error
+	key, err := keyMsg.ConvStr()
+	if err != nil {
+		log.Printf("%s: SET: invalid key: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Invalid key type for `SET` command")))
+		return
+	}
+
 	opts := &SetOptions{}
 	if len(msg.Array) > 3 {
 		opts, err = parseSETOptions(msg.Array[3:])
@@ -188,13 +194,8 @@ func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
 		}
 	}
 
-	storeRecordKey, err := fromRESP(keyMsg, opts.Expiry)
-	if err != nil {
-		log.Printf("%s SET: store key: %v", ErrCmdPrefix, err)
-	}
-
 	if opts.KEEPTTL {
-		if record, exists := s.store.Get(storeRecordKey); exists {
+		if record, exists := s.store.Get(key); exists {
 			opts.Expiry = record.ExpiresAt
 		}
 	}
@@ -203,7 +204,7 @@ func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
 	if err != nil {
 		log.Printf("%s SET: store value: %v", ErrCmdPrefix, err)
 	}
-	s.store.Set(storeRecordKey, storeRecordValue)
+	s.store.Set(key, storeRecordValue)
 
 	if opts.GET {
 		respVal, err := toRESPString(storeRecordValue)
