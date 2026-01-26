@@ -127,7 +127,7 @@ func toRESPString(r *store.Record) (string, error) {
 	case resp.Integer:
 		b.WriteString(resp.EncodeInteger(r.Value.(int)))
 	case resp.Maps:
-		s, err := toRESPStringFromStoreMap(b, r.Value.(map[*store.Record]*store.Record))
+		s, err := toRESPStringFromStoreMap(b, r.Value.(map[string]*store.Record))
 		if err != nil {
 			return "", fmt.Errorf("%s to resp: %w", ErrAdaptPrefix, err)
 		}
@@ -141,13 +141,10 @@ func toRESPString(r *store.Record) (string, error) {
 	return b.String(), nil
 }
 
-func toRESPStringFromStoreMap(b strings.Builder, m map[*store.Record]*store.Record) (string, error) {
+func toRESPStringFromStoreMap(b strings.Builder, m map[string]*store.Record) (string, error) {
 	for k, v := range m {
-		nestedKey, err := toRESPString(k)
-		if err != nil {
-			return "", fmt.Errorf("%s unable to adapt map key: %+v", ErrAdaptPrefix, k)
-		}
-		b.WriteString(nestedKey)
+		// Keys are already strings, encode them as BulkStrings
+		b.WriteString(resp.EncodeBulkString(k))
 
 		nestedValue, err := toRESPString(v)
 		if err != nil {

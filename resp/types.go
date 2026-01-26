@@ -96,15 +96,9 @@ func (m *Message) SerializeKey() (string, error) {
 		}
 		return fmt.Sprintf("arr:[%s]", strings.Join(parts, ",")), nil
 	case Maps:
-		var parts []string
-		for k, v := range m.Map {
-			key, err := k.SerializeKey()
-			if err != nil {
-				return "", fmt.Errorf("%s serialize map key of type (%s) to string", ErrTypePrefix, m.Type.String())
-			}
-			parts = append(parts, k, v)
-		}
-		return fmt.Sprintf("map:{%s}", strings.Join(parts, ",")), nil
+		// NOTE: Maps as keys are theoretically possible in RESP3 but extremely rare.
+		// Punting on full implementation for now - can revisit if needed.
+		return "", fmt.Errorf("%s maps as keys not currently supported", ErrTypePrefix)
 	default:
 		return "", fmt.Errorf("%s serialize key of type (%s) to string", ErrTypePrefix, m.Type.String())
 	}
