@@ -59,13 +59,12 @@ func initStore(cfg *config.Config) (*store.Store, error) {
 	store := store.New()
 
 	entriesCh := make(chan *rdb.Entry, 10)
-	// FIXME: I *believe* `rdb.Load` and its error handling should be wrapped
-	// inside of a go routine. This would prevent a deadlock where the entriesCh
-	// fills up before any consumer/reader can takes things off the buffer.
-	err := rdb.Load(filepath.Join(cfg.Dir, cfg.DBFilename), entriesCh)
-	if err != nil {
-		log.Printf("%s store init: %v\n", ErrInitPrefix, err)
-	}
+	go func() {
+		err := rdb.Load(filepath.Join(cfg.Dir, cfg.DBFilename), entriesCh)
+		if err != nil {
+			log.Printf("%s store init: %v\n", ErrInitPrefix, err)
+		}
+	}()
 
 	for {
 		select {
