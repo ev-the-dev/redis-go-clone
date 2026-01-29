@@ -9,6 +9,7 @@ import (
 	"net"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ev-the-dev/redis-go-clone/resp"
 	"github.com/ev-the-dev/redis-go-clone/store"
@@ -171,6 +172,7 @@ func (s *Server) handleKeysCommand(conn net.Conn, msg *resp.Message) {
 	conn.Write([]byte(resp.EncodeArray(len(result), result...)))
 }
 
+// TODO: Implement Expiry
 func (s *Server) handleRpushCommand(conn net.Conn, msg *resp.Message) {
 	if len(msg.Array) <= 2 {
 		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `RPUSH` command")))
@@ -192,8 +194,34 @@ func (s *Server) handleRpushCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
-	storeValues := make([]*store.Record, len(valMsgs))
-	if s.store.Get()
+	record, exists := s.store.Get(listName)
+	if !exists {
+		record = &store.Record{
+			Type:  resp.Array,
+			Value: make([]*store.Record, len(valMsgs)),
+		}
+	}
+
+	if record.Type != resp.Array {
+		log.Printf("%s: RPUSH: invalid type: %s", ErrCmdPrefix, record.Type.String())
+		conn.Write([]byte(resp.EncodeSimpleErr("Provided `RPUSH` Key is not an array/list type")))
+		return
+	}
+
+	for _, v := range valMsgs {
+		// TODO: Remove Time struct literal below
+		valRecord, err := fromRESP(v, time.Time{})
+		if err != nil {
+			log.Printf("%s RPUSH: value iter: %v", ErrCmdPrefix, err)
+		}
+		record.Value = append(record.Value.([]*store.Record), valRecord)
+	}
+
+	// NOTE: Not sure if we should overwriting the entire struct here
+	// or if we should mutate it directly. Which would be more performant?
+	s.store.Set(listName, record)
+
+	conn.Write([]byte(resp.EncodeInteger(len(record.Value.([]*store.Record)))))
 }
 
 func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
