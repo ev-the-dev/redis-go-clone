@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/ev-the-dev/redis-go-clone/resp"
+	"github.com/ev-the-dev/redis-go-clone/store"
 )
 
 func (s *Server) handleConfigCommand(conn net.Conn, msg *resp.Message) {
@@ -156,7 +157,7 @@ func (s *Server) handleKeysCommand(conn net.Conn, msg *resp.Message) {
 	pattern := patternMsg.String
 
 	result := make([]string, 0, len(msg.Array)*2)
-	for k := range s.store.Data {
+	for k := range s.store.Keys() {
 		match, err := filepath.Match(pattern, k)
 		if err != nil {
 			conn.Write([]byte(resp.EncodeSimpleErr("Error matching pattern for `KEYS` command")))
@@ -183,6 +184,16 @@ func (s *Server) handleRpushCommand(conn net.Conn, msg *resp.Message) {
 	for _, v := range valMsgs {
 		fmt.Printf("LIST VALUES: %+v\n", v)
 	}
+
+	listName, err := listNameMsg.ConvStr()
+	if err != nil {
+		log.Printf("%s: RPUSH: invalid list name: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Invalid list name type for `RPUSH` command")))
+		return
+	}
+
+	storeValues := make([]*store.Record, len(valMsgs))
+	if s.store.Get()
 }
 
 func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {

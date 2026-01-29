@@ -8,7 +8,7 @@ import (
 )
 
 type Store struct {
-	Data map[string]*Record
+	data map[string]*Record
 	mu   sync.RWMutex
 }
 
@@ -20,13 +20,13 @@ type Record struct {
 
 func New() *Store {
 	return &Store{
-		Data: make(map[string]*Record),
+		data: make(map[string]*Record),
 	}
 }
 
 func (s *Store) Get(k string) (*Record, bool) {
 	s.mu.RLock()
-	item, exists := s.Data[k]
+	item, exists := s.data[k]
 	if !exists {
 		s.mu.RUnlock()
 		return &Record{}, exists
@@ -42,15 +42,24 @@ func (s *Store) Get(k string) (*Record, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	// Checking using write lock in case a write occurred that extended TTL between releasing the Read lock and acquiring this Write lock
-	if item, exists := s.Data[k]; exists && time.Now().After(item.ExpiresAt) {
-		delete(s.Data, k)
+	if item, exists := s.data[k]; exists && time.Now().After(item.ExpiresAt) {
+		delete(s.data, k)
 	}
 
 	return &Record{}, false
 }
 
+func (s *Store) Keys() []string {
+	keys := make([]string, len(s.data))
+	for k := range s.data {
+		keys = append(keys, k)
+	}
+
+	return keys
+}
+
 func (s *Store) Set(k string, v *Record) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.Data[k] = v
+	s.data[k] = v
 }
