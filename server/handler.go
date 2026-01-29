@@ -86,6 +86,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 			s.handleGetCommand(conn, msg)
 		case "KEYS":
 			s.handleKeysCommand(conn, msg)
+		case "RPUSH":
+			s.handleRpushCommand(conn, msg)
 		case "SET":
 			s.handleSetCommand(conn, msg)
 		default:
@@ -166,6 +168,21 @@ func (s *Server) handleKeysCommand(conn net.Conn, msg *resp.Message) {
 	}
 
 	conn.Write([]byte(resp.EncodeArray(len(result), result...)))
+}
+
+func (s *Server) handleRpushCommand(conn net.Conn, msg *resp.Message) {
+	if len(msg.Array) <= 2 {
+		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `RPUSH` command")))
+		return
+	}
+
+	listNameMsg := msg.Array[1]
+	valMsgs := msg.Array[2:]
+
+	fmt.Printf("LIST NAME: %+v\n", listNameMsg)
+	for _, v := range valMsgs {
+		fmt.Printf("LIST VALUES: %+v\n", v)
+	}
 }
 
 func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
