@@ -50,9 +50,14 @@ func (s *Store) Get(k string) (*Record, bool) {
 }
 
 func (s *Store) Keys() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	keys := make([]string, len(s.data))
+	i := 0
 	for k := range s.data {
-		keys = append(keys, k)
+		keys[i] = k
+		i++
 	}
 
 	return keys

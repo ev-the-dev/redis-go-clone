@@ -198,7 +198,7 @@ func (s *Server) handleRpushCommand(conn net.Conn, msg *resp.Message) {
 	if !exists {
 		record = &store.Record{
 			Type:  resp.Array,
-			Value: make([]*store.Record, len(valMsgs)),
+			Value: make([]*store.Record, 0, len(valMsgs)),
 		}
 	}
 
