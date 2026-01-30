@@ -12,6 +12,9 @@ type Store struct {
 	mu   sync.RWMutex
 }
 
+// NOTE: Consider refactoring this struct to look more like
+// `resp.Message` to avoid having to perform a lot of runtime
+// type checks.
 type Record struct {
 	ExpiresAt time.Time
 	Type      resp.RESPType
