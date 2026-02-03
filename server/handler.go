@@ -88,6 +88,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 			s.handleGetCommand(conn, msg)
 		case "KEYS":
 			s.handleKeysCommand(conn, msg)
+		case "LRANGE":
+			s.handleLrangeCommand(conn, msg)
 		case "RPUSH":
 			s.handleRpushCommand(conn, msg)
 		case "SET":
@@ -172,23 +174,97 @@ func (s *Server) handleKeysCommand(conn net.Conn, msg *resp.Message) {
 	conn.Write([]byte(resp.EncodeArray(len(result), result...)))
 }
 
+// NOTE: Redis seems to default to an empty array when indices are out of bounds
+// or when the end index is smaller than the start index. Supporting this for now
+// but I feel like it'd be a good idea to let the user know that they've made a
+// mistake rather than think they just have an empty array/list in their store.
+func (s *Server) handleLrangeCommand(conn net.Conn, msg *resp.Message) {
+	if len(msg.Array) != 4 {
+		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `LRANGE` command")))
+		return
+	}
+
+	keyMsg := msg.Array[1]
+	startIdxMsg := msg.Array[2]
+	endIdxMsg := msg.Array[3]
+
+	key, err := keyMsg.ConvStr()
+	if err != nil {
+		log.Printf("%s: LRANGE: invalid key name: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Invalid key name type for `LRANGE` command")))
+		return
+	}
+
+	// TODO: write a function that converts both positive and negative indices
+	// to behave like Redis expects:
+	// - Positive index starts from beginning and ascends as index grows
+	// - Negative index starts from end and descends as index shrinks
+	startIdx, err := startIdxMsg.ConvInt()
+	if err != nil {
+		log.Printf("%s: LRANGE: err converting starting index to int: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Invalid start index type for `LRANGE` command")))
+		return
+	}
+
+	endIdx, err := endIdxMsg.ConvInt()
+	if err != nil {
+		log.Printf("%s: LRANGE: err converting ending index to int: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Invalid end index type for `LRANGE` command")))
+		return
+	}
+
+	record, exists := s.store.Get(key)
+	if !exists {
+		conn.Write([]byte(resp.EncodeArray(0, "")))
+		return
+	}
+
+	if record.Type != resp.Array {
+		log.Printf("%s: LRANGE: invalid type: %s", ErrCmdPrefix, record.Type.String())
+		conn.Write([]byte(resp.EncodeSimpleErr("Provided `LRANGE` Key produced non array/list type")))
+		return
+	}
+
+	recArr := record.Value.([]*store.Record)
+	if startIdx >= len(recArr) || endIdx < startIdx {
+		conn.Write([]byte(resp.EncodeArray(0, "")))
+		return
+	}
+
+	if endIdx >= len(recArr) {
+		endIdx = len(recArr) - 1
+	}
+
+	// NOTE: Redis' end index is inclusive, whereas Go's is not, ergo the +1
+	endIdx += 1
+
+	slice, err := toBulkRESPString(recArr[startIdx:endIdx])
+	if err != nil {
+		log.Printf("%s: LRANGE: to resp string: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Unable to output array")))
+		return
+	}
+
+	conn.Write([]byte(resp.EncodeArray(len(slice), slice...)))
+}
+
 func (s *Server) handleRpushCommand(conn net.Conn, msg *resp.Message) {
 	if len(msg.Array) <= 2 {
 		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `RPUSH` command")))
 		return
 	}
 
-	listNameMsg := msg.Array[1]
+	keyMsg := msg.Array[1]
 	valMsgs := msg.Array[2:]
 
-	listName, err := listNameMsg.ConvStr()
+	key, err := keyMsg.ConvStr()
 	if err != nil {
-		log.Printf("%s: RPUSH: invalid list name: %v", ErrCmdPrefix, err)
-		conn.Write([]byte(resp.EncodeSimpleErr("Invalid list name type for `RPUSH` command")))
+		log.Printf("%s: RPUSH: invalid key name: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Invalid key name type for `RPUSH` command")))
 		return
 	}
 
-	record, exists := s.store.Get(listName)
+	record, exists := s.store.Get(key)
 	if !exists {
 		record = &store.Record{
 			Type:  resp.Array,
@@ -198,7 +274,7 @@ func (s *Server) handleRpushCommand(conn net.Conn, msg *resp.Message) {
 
 	if record.Type != resp.Array {
 		log.Printf("%s: RPUSH: invalid type: %s", ErrCmdPrefix, record.Type.String())
-		conn.Write([]byte(resp.EncodeSimpleErr("Provided `RPUSH` Key is not an array/list type")))
+		conn.Write([]byte(resp.EncodeSimpleErr("Provided `RPUSH` Key produced non array/list type")))
 		return
 	}
 
@@ -210,7 +286,7 @@ func (s *Server) handleRpushCommand(conn net.Conn, msg *resp.Message) {
 		record.Value = append(record.Value.([]*store.Record), valRecord)
 	}
 
-	s.store.Set(listName, record)
+	s.store.Set(key, record)
 
 	conn.Write([]byte(resp.EncodeInteger(len(record.Value.([]*store.Record)))))
 }
