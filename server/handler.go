@@ -88,6 +88,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 			s.handleGetCommand(conn, msg)
 		case "KEYS":
 			s.handleKeysCommand(conn, msg)
+		case "LPUSH":
+			s.handleLpushCommand(conn, msg)
 		case "LRANGE":
 			s.handleLrangeCommand(conn, msg)
 		case "RPUSH":
@@ -172,6 +174,56 @@ func (s *Server) handleKeysCommand(conn net.Conn, msg *resp.Message) {
 	}
 
 	conn.Write([]byte(resp.EncodeArray(len(result), result...)))
+}
+
+func (s *Server) handleLpushCommand(conn net.Conn, msg *resp.Message) {
+	if len(msg.Array) <= 2 {
+		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `LPUSH` command")))
+		return
+	}
+
+	keyMsg := msg.Array[1]
+	valMsgs := msg.Array[2:]
+
+	key, err := keyMsg.ConvStr()
+	if err != nil {
+		log.Printf("%s: LPUSH: invalid key name: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Invalid key name type for `LPUSH` command")))
+		return
+	}
+
+	record, exists := s.store.Get(key)
+	if !exists {
+		record = &store.Record{
+			Type:  resp.Array,
+			Value: make([]*store.Record, 0, len(valMsgs)),
+		}
+	}
+
+	if record.Type != resp.Array {
+		log.Printf("%s: LPUSH: invalid type: %s", ErrCmdPrefix, record.Type.String())
+		conn.Write([]byte(resp.EncodeSimpleErr("Provided `LPUSH` Key produced non array/list type")))
+		return
+	}
+
+	// NOTE: Can improve perf by iterating over half the slice/array instead and swapping
+	// values with the current index and the 0th + (len - i)th index. Though in practical
+	// situations this will probably be negligible.
+	newVals := make([]*store.Record, len(valMsgs))
+	for i := len(valMsgs) - 1; i >= 0; i-- {
+		v := valMsgs[i]
+		valRecord, err := fromRESP(v, time.Time{})
+		if err != nil {
+			log.Printf("%s LPUSH: value iter: %v", ErrCmdPrefix, err)
+		}
+		newVals[len(valMsgs)-1-i] = valRecord
+	}
+
+	record.Value = append(newVals, record.Value.([]*store.Record)...)
+
+	s.store.Set(key, record)
+
+	conn.Write([]byte(resp.EncodeInteger(len(record.Value.([]*store.Record)))))
 }
 
 // NOTE: Redis seems to default to an empty array when indices are out of bounds
