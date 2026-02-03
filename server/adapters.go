@@ -108,6 +108,21 @@ func fromRESPMapToStoreMap(m *resp.Message, expiry time.Time) (map[string]*store
 	return sM, nil
 }
 
+// NOTE: Go doesn't allow negative indices for array/slice accessing.
+// This adapter helps support Redis functionality that does allow it.
+func NormalizeIndex(idx int, length int) int {
+	if idx >= 0 {
+		return idx
+	}
+
+	// NOTE: Just incase a negative index that is larger than
+	// the length is passed in, we just want to anchor it at
+	// 0 (zero) instead.
+	idx = max(length+idx, 0)
+
+	return idx
+}
+
 func toBulkRESPString(r []*store.Record) ([]string, error) {
 	ss := make([]string, len(r))
 	for i, v := range r {

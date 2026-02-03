@@ -195,10 +195,18 @@ func (s *Server) handleLrangeCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
-	// TODO: write a function that converts both positive and negative indices
-	// to behave like Redis expects:
-	// - Positive index starts from beginning and ascends as index grows
-	// - Negative index starts from end and descends as index shrinks
+	record, exists := s.store.Get(key)
+	if !exists {
+		conn.Write([]byte(resp.EncodeArray(0, "")))
+		return
+	}
+
+	if record.Type != resp.Array {
+		log.Printf("%s: LRANGE: invalid type: %s", ErrCmdPrefix, record.Type.String())
+		conn.Write([]byte(resp.EncodeSimpleErr("Provided `LRANGE` Key produced non array/list type")))
+		return
+	}
+
 	startIdx, err := startIdxMsg.ConvInt()
 	if err != nil {
 		log.Printf("%s: LRANGE: err converting starting index to int: %v", ErrCmdPrefix, err)
@@ -213,19 +221,10 @@ func (s *Server) handleLrangeCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
-	record, exists := s.store.Get(key)
-	if !exists {
-		conn.Write([]byte(resp.EncodeArray(0, "")))
-		return
-	}
-
-	if record.Type != resp.Array {
-		log.Printf("%s: LRANGE: invalid type: %s", ErrCmdPrefix, record.Type.String())
-		conn.Write([]byte(resp.EncodeSimpleErr("Provided `LRANGE` Key produced non array/list type")))
-		return
-	}
-
 	recArr := record.Value.([]*store.Record)
+	startIdx = NormalizeIndex(startIdx, len(recArr))
+	endIdx = NormalizeIndex(endIdx, len(recArr))
+
 	if startIdx >= len(recArr) || endIdx < startIdx {
 		conn.Write([]byte(resp.EncodeArray(0, "")))
 		return
