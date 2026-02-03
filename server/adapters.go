@@ -108,6 +108,20 @@ func fromRESPMapToStoreMap(m *resp.Message, expiry time.Time) (map[string]*store
 	return sM, nil
 }
 
+func toBulkRESPString(r []*store.Record) ([]string, error) {
+	ss := make([]string, len(r))
+	for i, v := range r {
+		s, err := toRESPString(v)
+		if err != nil {
+			return nil, fmt.Errorf("%s bulk to resp string: %w", ErrAdaptPrefix, err)
+		}
+
+		ss[i] = s
+	}
+
+	return ss, nil
+}
+
 func toRESPString(r *store.Record) (string, error) {
 	var b strings.Builder
 	switch r.Type {

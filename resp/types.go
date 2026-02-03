@@ -2,6 +2,7 @@ package resp
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -62,6 +63,21 @@ type Message struct {
 	Length  int
 	Map     map[string]*Message // <-- complex keys are serialized to strings
 	String  string
+}
+
+func (m *Message) ConvInt() (int, error) {
+	switch m.Type {
+	case Integer:
+		return m.Integer, nil
+	case BulkString, SimpleString:
+		num, err := strconv.Atoi(m.String)
+		if err != nil {
+			return 0, err
+		}
+		return num, nil
+	default:
+		return 0, fmt.Errorf("%s converting %s to int", ErrTypePrefix, m.Type.String())
+	}
 }
 
 func (m *Message) ConvStr() (string, error) {
