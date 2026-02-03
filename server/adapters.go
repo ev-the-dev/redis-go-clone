@@ -34,6 +34,9 @@ func fromRDB(e *rdb.Entry) (*store.Record, error) {
 	}, nil
 }
 
+// TODO: Think about removing `expiry` from this as there are tons of cases
+// where we'd use this but the Message type doesn't warrant an expiration.
+// Instead opt for a method on `*store.Record#WithExpiry`.
 func fromRESP(m *resp.Message, expiry time.Time) (*store.Record, error) {
 	var v any
 
