@@ -158,7 +158,7 @@ func (s *Server) handleKeysCommand(conn net.Conn, msg *resp.Message) {
 	pattern := patternMsg.String
 
 	result := make([]string, 0, len(msg.Array)*2)
-	for k := range s.store.Keys() {
+	for _, k := range s.store.Keys() {
 		match, err := filepath.Match(pattern, k)
 		if err != nil {
 			conn.Write([]byte(resp.EncodeSimpleErr("Error matching pattern for `KEYS` command")))
@@ -172,7 +172,6 @@ func (s *Server) handleKeysCommand(conn net.Conn, msg *resp.Message) {
 	conn.Write([]byte(resp.EncodeArray(len(result), result...)))
 }
 
-// TODO: Implement Expiry
 func (s *Server) handleRpushCommand(conn net.Conn, msg *resp.Message) {
 	if len(msg.Array) <= 2 {
 		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `RPUSH` command")))
@@ -217,8 +216,6 @@ func (s *Server) handleRpushCommand(conn net.Conn, msg *resp.Message) {
 		record.Value = append(record.Value.([]*store.Record), valRecord)
 	}
 
-	// NOTE: Not sure if we should overwriting the entire struct here
-	// or if we should mutate it directly. Which would be more performant?
 	s.store.Set(listName, record)
 
 	conn.Write([]byte(resp.EncodeInteger(len(record.Value.([]*store.Record)))))
