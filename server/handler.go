@@ -181,11 +181,6 @@ func (s *Server) handleRpushCommand(conn net.Conn, msg *resp.Message) {
 	listNameMsg := msg.Array[1]
 	valMsgs := msg.Array[2:]
 
-	fmt.Printf("LIST NAME: %+v\n", listNameMsg)
-	for _, v := range valMsgs {
-		fmt.Printf("LIST VALUES: %+v\n", v)
-	}
-
 	listName, err := listNameMsg.ConvStr()
 	if err != nil {
 		log.Printf("%s: RPUSH: invalid list name: %v", ErrCmdPrefix, err)
@@ -208,7 +203,6 @@ func (s *Server) handleRpushCommand(conn net.Conn, msg *resp.Message) {
 	}
 
 	for _, v := range valMsgs {
-		// TODO: Remove Time struct literal below
 		valRecord, err := fromRESP(v, time.Time{})
 		if err != nil {
 			log.Printf("%s RPUSH: value iter: %v", ErrCmdPrefix, err)

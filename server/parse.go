@@ -19,15 +19,13 @@ type SetOptions struct {
 }
 
 // NOTE: not sure if I should define a new error type like ErrParseSet for all of the errors here
-// TODO: fix the error strings in this file: the `resp` enum returns an integer, but we're expecting a string.
-// i.e. `resp.BulkString` will be `3` not literally "BulkString"
 func parseSETOptions(msgs []*resp.Message) (*SetOptions, error) {
 	opts := &SetOptions{}
 
 	for i := 0; i < len(msgs); i++ {
 		m := msgs[i]
 		if m.Type != resp.BulkString && m.Type != resp.SimpleString {
-			return nil, fmt.Errorf("%s SET option: parse: expected (%s|%s) but received (%s)", ErrCmdPrefix, resp.BulkString, resp.SimpleString, m.Type)
+			return nil, fmt.Errorf("%s SET option: parse: expected (%s|%s) but received (%s)", ErrCmdPrefix, resp.BulkString.String(), resp.SimpleString.String(), m.Type.String())
 		}
 
 		opt := strings.ToUpper(m.String)
@@ -40,7 +38,7 @@ func parseSETOptions(msgs []*resp.Message) (*SetOptions, error) {
 				return nil, fmt.Errorf("%s SET option: KEEPTTL with EX/PX/EXAT/PXAT provided", ErrCmdPrefix)
 			}
 			if msgs[i+1].Type != resp.BulkString {
-				return nil, fmt.Errorf("%s SET option: parse: expected (%s|%s) but received (%s)", ErrCmdPrefix, resp.BulkString, resp.SimpleString, m.Type)
+				return nil, fmt.Errorf("%s SET option: parse: expected (%s|%s) but received (%s)", ErrCmdPrefix, resp.BulkString.String(), resp.SimpleString.String(), m.Type.String())
 			}
 			exp, err := parseSETOptionWithArg(opt, msgs[i+1].String)
 			if err != nil {
