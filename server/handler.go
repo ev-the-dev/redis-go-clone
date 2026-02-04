@@ -260,6 +260,11 @@ func (s *Server) handleLpopCommand(conn net.Conn, msg *resp.Message) {
 			conn.Write([]byte(resp.EncodeSimpleErr("Unable to parse `LPOP` [count] arg")))
 			return
 		}
+
+		if count < 0 {
+			conn.Write([]byte(resp.EncodeSimpleErr("`LPOP` [count] arg must be positive")))
+			return
+		}
 	}
 
 	count = min(len(record.Value.([]*store.Record)), count)
