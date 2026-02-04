@@ -41,6 +41,7 @@ func fromRESP(m *resp.Message, expiry time.Time) (*store.Record, error) {
 	var v any
 
 	switch m.Type {
+	// TODO: Have to revisit how resp Sets behave and adapt accordingly
 	case resp.Array, resp.Sets:
 		rS, err := fromRESPArrayToStoreArray(m, expiry)
 		if err != nil {

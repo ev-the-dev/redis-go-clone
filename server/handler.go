@@ -88,6 +88,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 			s.handleGetCommand(conn, msg)
 		case "KEYS":
 			s.handleKeysCommand(conn, msg)
+		case "LLEN":
+			s.handleLlenCommand(conn, msg)
 		case "LPUSH":
 			s.handleLpushCommand(conn, msg)
 		case "LRANGE":
@@ -174,6 +176,42 @@ func (s *Server) handleKeysCommand(conn net.Conn, msg *resp.Message) {
 	}
 
 	conn.Write([]byte(resp.EncodeArray(len(result), result...)))
+}
+
+func (s *Server) handleLlenCommand(conn net.Conn, msg *resp.Message) {
+	if len(msg.Array) != 2 {
+		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `LLEN` command")))
+		return
+	}
+
+	keyMsg := msg.Array[1]
+
+	key, err := keyMsg.ConvStr()
+	if err != nil {
+		log.Printf("%s: LLEN: invalid key name: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Invalid key name type for `LLEN` command")))
+		return
+	}
+
+	record, exists := s.store.Get(key)
+	if !exists {
+		conn.Write([]byte(resp.EncodeInteger(0)))
+		return
+	}
+
+	var length int
+	switch record.Type {
+	case resp.Array, resp.Sets:
+		length = len(record.Value.([]*store.Record))
+	case resp.Maps:
+		length = len(record.Value.(map[string]*store.Record))
+	default:
+		log.Printf("%s: LLEN: invalid type: %s", ErrCmdPrefix, record.Type.String())
+		conn.Write([]byte(resp.EncodeSimpleErr("Provided `LLEN` Key produced non-keyed type")))
+		return
+	}
+
+	conn.Write([]byte(resp.EncodeInteger(length)))
 }
 
 func (s *Server) handleLpushCommand(conn net.Conn, msg *resp.Message) {
