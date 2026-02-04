@@ -15,6 +15,25 @@ import (
 	"github.com/ev-the-dev/redis-go-clone/store"
 )
 
+func (s *Server) handleBLPOPCommand(conn net.Conn, msg *resp.Message) {
+	/*
+		Description
+		1. Need to accept varying amount of keys to "wait" for
+		2. Keys are checked in order from whence they're passed
+		3. Whichever key provided pops first unblocks and returns:
+			a. Name of key/list
+			b. Popped element
+		4. If any of the lists has elements, they're popped and returned
+		immediately without blocking
+		5. BLPOP blocks even if lists don't exist
+		6. If timeout occurs BLPOP returns `null array` (*-1\r\n)
+		7. Timeout provided is in "seconds" and a 0 value means indefinite blocking
+
+		Notes
+		1. Utilize select statement to block
+	*/
+}
+
 func (s *Server) handleConfigCommand(conn net.Conn, msg *resp.Message) {
 	// NOTE: if I need support just the `CONFIG` command this needs to change
 	if len(msg.Array) < 3 {
@@ -80,6 +99,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 		switch strings.ToUpper(cmdMsg.String) {
 		case "PING":
 			conn.Write([]byte("+PONG\r\n"))
+		case "BLPOP":
+			s.handleBLPOPCommand(conn, msg)
 		case "CONFIG":
 			s.handleConfigCommand(conn, msg)
 		case "ECHO":
