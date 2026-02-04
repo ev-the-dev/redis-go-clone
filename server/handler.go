@@ -90,6 +90,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 			s.handleKeysCommand(conn, msg)
 		case "LLEN":
 			s.handleLlenCommand(conn, msg)
+		case "LPOP":
+			s.handleLpopCommand(conn, msg)
 		case "LPUSH":
 			s.handleLpushCommand(conn, msg)
 		case "LRANGE":
@@ -214,6 +216,69 @@ func (s *Server) handleLlenCommand(conn net.Conn, msg *resp.Message) {
 	conn.Write([]byte(resp.EncodeInteger(length)))
 }
 
+func (s *Server) handleLpopCommand(conn net.Conn, msg *resp.Message) {
+	if len(msg.Array) < 2 || len(msg.Array) > 3 {
+		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `LPOP` command")))
+		return
+	}
+
+	keyMsg := msg.Array[1]
+
+	key, err := keyMsg.ConvStr()
+	if err != nil {
+		log.Printf("%s: LPOP: invalid key name: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Invalid key name type for `LPOP` command")))
+		return
+	}
+
+	record, exists := s.store.Get(key)
+	if !exists {
+		log.Printf("%s: LPOP: does not exists: %s", ErrCmdPrefix, key)
+		conn.Write([]byte(resp.EncodeNulls()))
+		return
+	}
+
+	if record.Type != resp.Array {
+		log.Printf("%s: LPOP: invalid type: %s", ErrCmdPrefix, record.Type.String())
+		conn.Write([]byte(resp.EncodeSimpleErr("Provided `LPOP` Key produced non array/list type")))
+		return
+	}
+
+	list := record.Value.([]*store.Record)
+
+	if len(list) == 0 {
+		conn.Write([]byte(resp.EncodeNulls()))
+		return
+	}
+
+	count := 1
+	if len(msg.Array) == 3 {
+		countMsg := msg.Array[2]
+		count, err = countMsg.ConvInt()
+		if err != nil {
+			log.Printf("%s: LPOP: count parse: %v", ErrCmdPrefix, err)
+			conn.Write([]byte(resp.EncodeSimpleErr("Unable to parse `LPOP` [count] arg")))
+			return
+		}
+	}
+
+	count = min(len(record.Value.([]*store.Record)), count)
+
+	poppedSlice := record.Value.([]*store.Record)[0:count]
+	record.Value = record.Value.([]*store.Record)[count:]
+
+	s.store.Set(key, record)
+
+	toResp, err := toBulkRESPString(poppedSlice)
+	if err != nil {
+		log.Printf("%s: LPOP: to resp string: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Unable to output popped array")))
+		return
+	}
+
+	conn.Write([]byte(resp.EncodeArray(len(toResp), toResp...)))
+}
+
 func (s *Server) handleLpushCommand(conn net.Conn, msg *resp.Message) {
 	if len(msg.Array) <= 2 {
 		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `LPUSH` command")))
@@ -327,14 +392,14 @@ func (s *Server) handleLrangeCommand(conn net.Conn, msg *resp.Message) {
 	// NOTE: Redis' end index is inclusive, whereas Go's is not, ergo the +1
 	endIdx += 1
 
-	slice, err := toBulkRESPString(recArr[startIdx:endIdx])
+	toResp, err := toBulkRESPString(recArr[startIdx:endIdx])
 	if err != nil {
 		log.Printf("%s: LRANGE: to resp string: %v", ErrCmdPrefix, err)
 		conn.Write([]byte(resp.EncodeSimpleErr("Unable to output array")))
 		return
 	}
 
-	conn.Write([]byte(resp.EncodeArray(len(slice), slice...)))
+	conn.Write([]byte(resp.EncodeArray(len(toResp), toResp...)))
 }
 
 func (s *Server) handleRpushCommand(conn net.Conn, msg *resp.Message) {
