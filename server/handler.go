@@ -97,30 +97,30 @@ func (s *Server) handleConnection(conn net.Conn) {
 			continue
 		}
 
-		switch strings.ToUpper(cmdMsg.String) {
-		case "PING":
+		switch CmdName(strings.ToUpper(cmdMsg.String)) {
+		case PING:
 			conn.Write([]byte("+PONG\r\n"))
-		case "BLPOP":
+		case BLPOP:
 			s.handleBLPOPCommand(conn, msg)
-		case "CONFIG":
+		case CONFIG:
 			s.handleConfigCommand(conn, msg)
-		case "ECHO":
+		case ECHO:
 			s.handleEchoCommand(conn, msg)
-		case "GET":
+		case GET:
 			s.handleGetCommand(conn, msg)
-		case "KEYS":
+		case KEYS:
 			s.handleKeysCommand(conn, msg)
-		case "LLEN":
+		case LLEN:
 			s.handleLlenCommand(conn, msg)
-		case "LPOP":
+		case LPOP:
 			s.handleLpopCommand(conn, msg)
-		case "LPUSH":
+		case LPUSH:
 			s.handleLpushCommand(conn, msg)
-		case "LRANGE":
+		case LRANGE:
 			s.handleLrangeCommand(conn, msg)
-		case "RPUSH":
+		case RPUSH:
 			s.handleRpushCommand(conn, msg)
-		case "SET":
+		case SET:
 			s.handleSetCommand(conn, msg)
 		default:
 			conn.Write([]byte(resp.EncodeSimpleErr("Unknown command")))
