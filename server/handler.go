@@ -289,10 +289,10 @@ func (s *Server) handleLpopCommand(conn net.Conn, msg *resp.Message) {
 		}
 	}
 
-	count = min(len(record.Value.([]*store.Record)), count)
+	count = min(len(list), count)
 
-	poppedSlice := record.Value.([]*store.Record)[0:count]
-	record.Value = record.Value.([]*store.Record)[count:]
+	poppedSlice := list[0:count]
+	record.Value = list[count:]
 
 	s.store.Set(key, record)
 
