@@ -28,6 +28,7 @@ func (s *Server) handleBLPOPCommand(conn net.Conn, msg *resp.Message) {
 		5. BLPOP blocks even if lists don't exist
 		6. If timeout occurs BLPOP returns `null array` (*-1\r\n)
 		7. Timeout provided is in "seconds" and a 0 value means indefinite blocking
+		8. If multiple connections use BLPOP on same key(s), first one connected wins
 
 		Notes
 		1. Utilize select statement to block
