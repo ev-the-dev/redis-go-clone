@@ -1,6 +1,10 @@
 package server
 
-import "net"
+import (
+	"net"
+
+	"github.com/ev-the-dev/redis-go-clone/store"
+)
 
 type BlockingManager struct {
 	queue map[string][]*BlockedClient
@@ -11,8 +15,20 @@ type BlockingManager struct {
 * when to pop a particular BlockedClient from the above KeyQueue.
  */
 type BlockedClient struct {
-	conn net.Conn
-	subs []string
+	conn    net.Conn
+	replyCh chan *store.Record
+	subs    []string
+}
+
+func (bm *BlockingManager) RegisterClient(bc *BlockedClient) {
+	for _, key := range bc.subs {
+		_, exists := bm.queue[key]
+		if !exists {
+			bm.queue[key] = make([]*BlockedClient, 0, len(bc.subs))
+		}
+
+		bm.queue[key] = append(bm.queue[key], bc)
+	}
 }
 
 func (bm *BlockingManager) UnregisterClient(bc *BlockedClient) {

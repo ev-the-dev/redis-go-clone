@@ -14,8 +14,9 @@ import (
 )
 
 type Server struct {
-	config *config.Config
-	store  *store.Store
+	blockingManager *BlockingManager
+	config          *config.Config
+	store           *store.Store
 }
 
 func New(cfg *config.Config) *Server {
@@ -29,22 +30,14 @@ func New(cfg *config.Config) *Server {
 	}
 
 	return &Server{
+		blockingManager: &BlockingManager{
+			queue: make(map[string][]*BlockedClient),
+		},
 		config: cfg,
 		store:  memStore,
 	}
 }
 
-// TODO: need to rethink how I handle connections. I need to
-// pool them together to be able to handle concurrent conns
-// trying to access the same data with blocks. This might also
-// improve the signature of each handler as they could probably just
-// return a RESP string and then some central orchestrator uses that
-// output to write to the connection(s).
-//
-// The only situation I could see this causing issues is we'd need to
-// write to the connection multiple times for a command, then using
-// the returns instead of passing the connection directly could pose
-// an issue in this regard.
 func (s *Server) Start() {
 	l, err := net.Listen("tcp", "0.0.0.0:6379")
 	if err != nil {

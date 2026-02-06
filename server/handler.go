@@ -88,10 +88,26 @@ func (s *Server) handleBLPOPCommand(conn net.Conn, msg *resp.Message) {
 
 	/*** BLOCKING BEGINS ***/
 
-	// If we got here, no keys yielded data, so now need to loop over list
-	// and use them to create BlockedClients and await
+	bc := &BlockedClient{
+		conn:    conn,
+		replyCh: make(chan *store.Record, 1),
+		subs:    emptyKeys,
+	}
+
+	s.blockingManager.RegisterClient(bc)
 
 	select {
+	case rec, ok := <-bc.replyCh:
+		if !ok {
+			// NOTE: not entirely sure what to do here
+		}
+		toResp, err := toRESPString(rec)
+		if err != nil {
+			log.Printf("%s: BLPOP: block: to resp string: %v", ErrCmdPrefix, err)
+			conn.Write([]byte(resp.EncodeSimpleErr("Unable to output blocked popped value")))
+			return
+		}
+		conn.Write([]byte(toResp))
 	case <-time.After(time.Duration(timeout) * time.Second):
 		conn.Write([]byte(resp.EncodeNullArray()))
 	}
