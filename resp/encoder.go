@@ -41,6 +41,10 @@ func EncodeMap(length int, m string) string {
 	return fmt.Sprintf("%%%d\r\n%s", length, m)
 }
 
+func EncodeNullArray() string {
+	return fmt.Sprintf("*-1\r\n")
+}
+
 // RESP2 Specific Type
 func EncodeNullBulkString() string {
 	return fmt.Sprint("$-1\r\n")

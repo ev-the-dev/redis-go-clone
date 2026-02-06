@@ -3,7 +3,7 @@ package server
 import "net"
 
 type BlockingManager struct {
-	cmdQueue map[CmdName][]*BlockedClient
+	queue map[string][]*BlockedClient
 }
 
 /* NOTE: We don't need an ID for this struct because we're using it as
@@ -12,21 +12,21 @@ type BlockingManager struct {
  */
 type BlockedClient struct {
 	conn net.Conn
-	subs []CmdName
+	subs []string
 }
 
 func (bm *BlockingManager) UnregisterClient(bc *BlockedClient) {
-	for _, cmds := range bc.subs {
-		bmCmdQueue := bm.cmdQueue[cmds]
+	for _, keys := range bc.subs {
+		clients := bm.queue[keys]
 
 		i := 0
-		for _, c := range bmCmdQueue {
-			if bmCmdQueue[i] != bc {
-				bmCmdQueue[i] = c
+		for _, c := range clients {
+			if clients[i] != bc {
+				clients[i] = c
 				i++
 			}
 		}
 
-		bmCmdQueue = bmCmdQueue[:i]
+		clients = clients[:i]
 	}
 }

@@ -33,6 +33,68 @@ func (s *Server) handleBLPOPCommand(conn net.Conn, msg *resp.Message) {
 		Notes
 		1. Utilize select statement to block
 	*/
+	if len(msg.Array) < 2 {
+		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `BLPOP` command")))
+		return
+	}
+
+	keyMsgs := msg.Array[1 : len(msg.Array)-1]
+	timeoutMsg := msg.Array[len(msg.Array)-1]
+
+	timeout, err := timeoutMsg.ConvInt()
+	if err != nil {
+		log.Printf("%s: BLPOP: invalid timeout: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Timeout arg for `BLPOP` must be greater than or equal to 0")))
+		return
+	}
+
+	emptyKeys := make([]string, 0, len(keyMsgs)/2)
+	for i, km := range keyMsgs {
+		key, err := km.ConvStr()
+		if err != nil {
+			log.Printf("%s: BLPOP: invalid key at pos (%d): %v", ErrCmdPrefix, i, err)
+			conn.Write([]byte(resp.EncodeSimpleErr("Invalid key type for `BLPOP` command")))
+			return
+		}
+
+		record, exists := s.store.Get(key)
+		if !exists || (record.Type == resp.Array && len(record.Value.([]*store.Record)) == 0) {
+			emptyKeys = append(emptyKeys, key)
+			continue
+		}
+
+		if record.Type != resp.Array {
+			log.Printf("%s: BLPOP: invalid type from key (%s): %s", ErrCmdPrefix, key, record.Type.String())
+			conn.Write([]byte(resp.EncodeSimpleErr(fmt.Sprintf("Provided `BLPOP` Key (%s) produced non array/list type", key))))
+			return
+		}
+
+		list := record.Value.([]*store.Record)
+		val := list[0]
+		record.Value = list[1:]
+
+		s.store.Set(key, record)
+
+		toResp, err := toRESPString(val)
+		if err != nil {
+			log.Printf("%s: BLPOP: to resp string: %v", ErrCmdPrefix, err)
+			conn.Write([]byte(resp.EncodeSimpleErr("Unable to output popped value")))
+			return
+		}
+
+		conn.Write([]byte(toResp))
+		return
+	}
+
+	/*** BLOCKING BEGINS ***/
+
+	// If we got here, no keys yielded data, so now need to loop over list
+	// and use them to create BlockedClients and await
+
+	select {
+	case <-time.After(time.Duration(timeout) * time.Second):
+		conn.Write([]byte(resp.EncodeNullArray()))
+	}
 }
 
 func (s *Server) handleConfigCommand(conn net.Conn, msg *resp.Message) {
