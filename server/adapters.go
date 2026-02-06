@@ -124,6 +124,13 @@ func NormalizeIndex(idx int, length int) int {
 	return idx
 }
 
+// NOTE: Might have this simply output a single string that is already
+// encoded as an Array. I'm not sure if this function will be used for
+// any other scenario.
+//
+// Currently it outputs a slice of RESP strings, but not in itself
+// a RESP string, so the output of this function still needs to be
+// encoded before reaching the client.
 func toBulkRESPString(r []*store.Record) ([]string, error) {
 	ss := make([]string, len(r))
 	for i, v := range r {
