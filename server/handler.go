@@ -623,6 +623,11 @@ func (s *Server) handleTypeCommand(conn net.Conn, msg *resp.Message) {
 	}
 
 	record, _ := s.store.Get(key)
-	fmt.Printf("RECORD:%+v\n", record)
-	conn.Write([]byte(resp.EncodeSimpleString(record.Type.String())))
+	var stype string
+	if record.Type == resp.None {
+		stype = "none"
+	} else {
+		stype = record.Type.String()
+	}
+	conn.Write([]byte(resp.EncodeSimpleString(stype)))
 }

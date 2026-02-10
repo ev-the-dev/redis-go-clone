@@ -28,6 +28,7 @@ const (
 	Sets
 	SimpleError
 	SimpleString
+	None
 )
 
 func (t RESPType) String() string {
