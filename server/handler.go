@@ -624,10 +624,16 @@ func (s *Server) handleTypeCommand(conn net.Conn, msg *resp.Message) {
 
 	record, _ := s.store.Get(key)
 	var stype string
-	if record.Type == resp.None {
+
+	switch record.Type {
+	case resp.Array:
+		stype = "list"
+	case resp.BulkString, resp.SimpleString:
+		stype = "string"
+	case resp.Sets:
+		stype = "set"
+	default:
 		stype = "none"
-	} else {
-		stype = record.Type.String()
 	}
 	conn.Write([]byte(resp.EncodeSimpleString(stype)))
 }
