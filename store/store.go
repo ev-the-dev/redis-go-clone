@@ -32,7 +32,7 @@ func (s *Store) Get(k string) (*Record, bool) {
 	item, exists := s.data[k]
 	if !exists {
 		s.mu.RUnlock()
-		return &Record{}, exists
+		return &Record{Type: resp.None}, exists
 	}
 
 	isExpired := !item.ExpiresAt.IsZero() && time.Now().After(item.ExpiresAt)

@@ -21,14 +21,8 @@ func (s *Server) handleBLPOPCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
-	for _, v := range msg.Array {
-		fmt.Printf("Msg Arr item: %+v\n", v)
-	}
-
 	keyMsgs := msg.Array[1 : len(msg.Array)-1]
 	timeoutMsg := msg.Array[len(msg.Array)-1]
-
-	fmt.Printf("Timeout msg: %+v\n", timeoutMsg)
 
 	timeout, err := timeoutMsg.ConvInt()
 	if err != nil {
@@ -64,7 +58,7 @@ func (s *Server) handleBLPOPCommand(conn net.Conn, msg *resp.Message) {
 		list := record.Value.([]*store.Record)
 		val := list[0]
 		record.Value = list[1:]
-		fmt.Printf("BLPOP RECORD: %+v", val)
+
 		s.store.Set(key, record)
 
 		toResp, err := toRESPString(val)
@@ -208,6 +202,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 			s.handleRpushCommand(conn, msg)
 		case SET:
 			s.handleSetCommand(conn, msg)
+		case TYPE:
+			s.handleTypeCommand(conn, msg)
 		default:
 			conn.Write([]byte(resp.EncodeSimpleErr("Unknown command")))
 		}
@@ -609,4 +605,24 @@ func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
 		conn.Write([]byte(resp.EncodeSimpleString("OK")))
 	}
 	return
+}
+
+func (s *Server) handleTypeCommand(conn net.Conn, msg *resp.Message) {
+	if len(msg.Array) != 2 {
+		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `TYPE` command")))
+		return
+	}
+
+	keyMsg := msg.Array[1]
+
+	key, err := keyMsg.ConvStr()
+	if err != nil {
+		log.Printf("%s: TYPE: invalid key: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Invalid key type for `TYPE` command")))
+		return
+	}
+
+	record, _ := s.store.Get(key)
+	fmt.Printf("RECORD:%+v\n", record)
+	conn.Write([]byte(resp.EncodeSimpleString(record.Type.String())))
 }

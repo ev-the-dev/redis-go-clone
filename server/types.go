@@ -25,4 +25,5 @@ const (
 	PING   CmdName = "PING"
 	RPUSH  CmdName = "RPUSH"
 	SET    CmdName = "SET"
+	TYPE   CmdName = "TYPE"
 )
