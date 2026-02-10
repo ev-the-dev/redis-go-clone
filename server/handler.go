@@ -16,36 +16,28 @@ import (
 )
 
 func (s *Server) handleBLPOPCommand(conn net.Conn, msg *resp.Message) {
-	/*
-		Description
-		1. Need to accept varying amount of keys to "wait" for
-		2. Keys are checked in order from whence they're passed
-		3. Whichever key provided pops first unblocks and returns:
-			a. Name of key/list
-			b. Popped element
-		4. If any of the lists has elements, they're popped and returned
-		immediately without blocking
-		5. BLPOP blocks even if lists don't exist
-		6. If timeout occurs BLPOP returns `null array` (*-1\r\n)
-		7. Timeout provided is in "seconds" and a 0 value means indefinite blocking
-		8. If multiple connections use BLPOP on same key(s), first one connected wins
-
-		Notes
-		1. Utilize select statement to block
-	*/
 	if len(msg.Array) < 2 {
 		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `BLPOP` command")))
 		return
 	}
 
+	for _, v := range msg.Array {
+		fmt.Printf("Msg Arr item: %+v\n", v)
+	}
+
 	keyMsgs := msg.Array[1 : len(msg.Array)-1]
 	timeoutMsg := msg.Array[len(msg.Array)-1]
+
+	fmt.Printf("Timeout msg: %+v\n", timeoutMsg)
 
 	timeout, err := timeoutMsg.ConvInt()
 	if err != nil {
 		log.Printf("%s: BLPOP: invalid timeout: %v", ErrCmdPrefix, err)
 		conn.Write([]byte(resp.EncodeSimpleErr("Timeout arg for `BLPOP` must be greater than or equal to 0")))
 		return
+	}
+	if timeout == 0 {
+		timeout = 1_000_000
 	}
 
 	emptyKeys := make([]string, 0, len(keyMsgs)/2)
@@ -72,7 +64,7 @@ func (s *Server) handleBLPOPCommand(conn net.Conn, msg *resp.Message) {
 		list := record.Value.([]*store.Record)
 		val := list[0]
 		record.Value = list[1:]
-
+		fmt.Printf("BLPOP RECORD: %+v", val)
 		s.store.Set(key, record)
 
 		toResp, err := toRESPString(val)
@@ -82,34 +74,50 @@ func (s *Server) handleBLPOPCommand(conn net.Conn, msg *resp.Message) {
 			return
 		}
 
-		conn.Write([]byte(toResp))
+		conn.Write([]byte(resp.EncodeArray(2, []string{resp.EncodeBulkString(key), toResp}...)))
 		return
 	}
 
 	/*** BLOCKING BEGINS ***/
-
 	bc := &BlockedClient{
 		conn:    conn,
-		replyCh: make(chan *store.Record, 1),
+		replyCh: make(chan *BlockedClientChanResp, 1),
 		subs:    emptyKeys,
 	}
 
 	s.blockingManager.RegisterClient(bc)
 
 	select {
-	case rec, ok := <-bc.replyCh:
+	case res, ok := <-bc.replyCh:
 		if !ok {
 			// NOTE: not entirely sure what to do here
 		}
-		toResp, err := toRESPString(rec)
+		if res.rec.Type != resp.Array {
+			log.Printf("%s: BLPOP: blocking: invalid type from key (%s): %s", ErrCmdPrefix, res.key, res.rec.Type.String())
+			conn.Write([]byte(resp.EncodeSimpleErr(fmt.Sprintf("Provided `BLPOP` Key (%s) produced non array/list type", res.key))))
+			return
+		}
+
+		list := res.rec.Value.([]*store.Record)
+		val := list[0]
+		res.rec.Value = list[1:]
+
+		s.store.Set(res.key, res.rec)
+
+		if res.rec.Type == resp.Array && len(res.rec.Value.([]*store.Record)) != 0 {
+			s.blockingManager.NotifyWatchers(res.key, res.rec)
+		}
+
+		toResp, err := toRESPString(val)
 		if err != nil {
-			log.Printf("%s: BLPOP: block: to resp string: %v", ErrCmdPrefix, err)
+			log.Printf("%s: BLPOP: blocking: to resp string: %v", ErrCmdPrefix, err)
 			conn.Write([]byte(resp.EncodeSimpleErr("Unable to output blocked popped value")))
 			return
 		}
-		conn.Write([]byte(toResp))
+		conn.Write([]byte(resp.EncodeArray(2, []string{resp.EncodeBulkString(res.key), toResp}...)))
 	case <-time.After(time.Duration(timeout) * time.Second):
 		conn.Write([]byte(resp.EncodeNullArray()))
+		s.blockingManager.UnregisterClient(bc)
 	}
 }
 
@@ -430,6 +438,7 @@ func (s *Server) handleLpushCommand(conn net.Conn, msg *resp.Message) {
 	record.Value = append(newVals, record.Value.([]*store.Record)...)
 
 	s.store.Set(key, record)
+	s.blockingManager.NotifyWatchers(key, record)
 
 	conn.Write([]byte(resp.EncodeInteger(len(record.Value.([]*store.Record)))))
 }
@@ -546,6 +555,7 @@ func (s *Server) handleRpushCommand(conn net.Conn, msg *resp.Message) {
 	}
 
 	s.store.Set(key, record)
+	s.blockingManager.NotifyWatchers(key, record)
 
 	conn.Write([]byte(resp.EncodeInteger(len(record.Value.([]*store.Record)))))
 }

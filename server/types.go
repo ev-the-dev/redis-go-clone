@@ -3,10 +3,11 @@ package server
 type ErrPrefix string
 
 const (
+	ErrAdaptPrefix ErrPrefix = "server: adapt:"
+	ErrBlockPrefix ErrPrefix = "server: blocking:"
 	ErrCmdPrefix   ErrPrefix = "server: cmd:"
 	ErrConnPrefix  ErrPrefix = "server: conn:"
 	ErrInitPrefix  ErrPrefix = "server: init:"
-	ErrAdaptPrefix ErrPrefix = "server: adapt:"
 )
 
 type CmdName string
