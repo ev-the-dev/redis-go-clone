@@ -204,6 +204,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 			s.handleSetCommand(conn, msg)
 		case TYPE:
 			s.handleTypeCommand(conn, msg)
+		case XADD:
+			s.handleXaddCommand(conn, msg)
 		default:
 			conn.Write([]byte(resp.EncodeSimpleErr("Unknown command")))
 		}
@@ -636,4 +638,8 @@ func (s *Server) handleTypeCommand(conn net.Conn, msg *resp.Message) {
 		stype = "none"
 	}
 	conn.Write([]byte(resp.EncodeSimpleString(stype)))
+}
+
+func (s *Server) handleXaddCommand(conn net.Conn, msg *resp.Message) {
+
 }
