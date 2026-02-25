@@ -30,22 +30,19 @@ const (
 	XADD   CmdName = "XADD"
 )
 
-type StreamNode struct {
-	prefix   string
-	children []*StreamNode
-	value    any
-	isLeaf   bool
+type Stream struct {
+	root *StreamNode
 }
 
-func (sn *StreamNode) Get(key string) (any, bool) {
-	node := sn // <-- root
+func (s *Stream) Get(key string) (any, bool) {
+	node := s.root
 	for len(key) > 0 {
-		child, _ := sn.findChild(key[0])
+		child, _ := node.findChild(key[0])
 		if child == nil {
 			return nil, false
 		}
 
-		shared := sn.commonPrefixLen(child.prefix, key)
+		shared := node.commonPrefixLen(child.prefix, key)
 		if shared != len(child.prefix) {
 			return nil, false
 		}
@@ -57,11 +54,18 @@ func (sn *StreamNode) Get(key string) (any, bool) {
 	return node.value, node.isLeaf
 }
 
+type StreamNode struct {
+	prefix   string
+	children []*StreamNode
+	value    any
+	isLeaf   bool
+}
+
 func (sn *StreamNode) commonPrefixLen(childPrefix, key string) int {
 	l := min(len(childPrefix), len(key))
 	for i := range l {
 		if childPrefix[i] != key[i] {
-			return i + 1
+			return i
 		}
 	}
 
