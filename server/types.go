@@ -1,7 +1,5 @@
 package server
 
-import "fmt"
-
 type ErrPrefix string
 
 const (
@@ -39,14 +37,56 @@ type StreamNode struct {
 	isLeaf   bool
 }
 
-func (sn *StreamNode) Get(id string) (*StreamNode, error) {
-	if sn.prefix == id {
-		return sn, nil
+func (sn *StreamNode) Get(key string) (any, bool) {
+	node := sn // <-- root
+	for len(key) > 0 {
+		child, _ := sn.findChild(key[0])
+		if child == nil {
+			return nil, false
+		}
+
+		shared := sn.commonPrefixLen(child.prefix, key)
+		if shared != len(child.prefix) {
+			return nil, false
+		}
+
+		key = key[shared:]
+		node = child
 	}
 
-	for c := range sn.children {
+	return node.value, node.isLeaf
+}
 
+func (sn *StreamNode) commonPrefixLen(childPrefix, key string) int {
+	l := min(len(childPrefix), len(key))
+	for i := range l {
+		if childPrefix[i] != key[i] {
+			return i + 1
+		}
 	}
 
-	return nil, fmt.Errorf("%s unable to find node at (%s)", ErrStreamPrefix, id)
+	return l
+}
+
+/*
+* The Radix tree that this traverses should always parse out common
+* prefixes, so each child should never have the same first byte, hence
+* why the comparison between `first` and `b`
+ */
+func (sn *StreamNode) findChild(b byte) (*StreamNode, int) {
+	lo, hi := 0, len(sn.children)-1
+	for lo <= hi {
+		mid := (lo + hi) / 2
+		first := sn.children[mid].prefix[0]
+		if first == b {
+			return sn.children[mid], mid
+		} else if first < b {
+			lo = mid + 1
+		} else {
+			hi = mid - 1
+		}
+	}
+
+	// Not found -- lo is where it *would* be inserted
+	return nil, lo
 }
