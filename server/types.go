@@ -42,7 +42,7 @@ func (s *Stream) Get(key string) (any, bool) {
 			return nil, false
 		}
 
-		shared := node.commonPrefixLen(child.prefix, key)
+		shared := child.commonPrefixLen(key)
 		if shared != len(child.prefix) {
 			return nil, false
 		}
@@ -61,10 +61,10 @@ type StreamNode struct {
 	isLeaf   bool
 }
 
-func (sn *StreamNode) commonPrefixLen(childPrefix, key string) int {
-	l := min(len(childPrefix), len(key))
+func (sn *StreamNode) commonPrefixLen(key string) int {
+	l := min(len(sn.prefix), len(key))
 	for i := range l {
-		if childPrefix[i] != key[i] {
+		if sn.prefix[i] != key[i] {
 			return i
 		}
 	}
