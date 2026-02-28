@@ -1,5 +1,7 @@
 package server
 
+import "github.com/ev-the-dev/redis-go-clone/store"
+
 type ErrPrefix string
 
 const (
@@ -54,10 +56,15 @@ func (s *Stream) Get(key string) (any, bool) {
 	return node.value, node.isLeaf
 }
 
+type StreamEntry struct {
+	ID     string
+	Fields []string
+}
+
 type StreamNode struct {
 	prefix   string
 	children []*StreamNode
-	value    any
+	value    *StreamEntry
 	isLeaf   bool
 }
 
