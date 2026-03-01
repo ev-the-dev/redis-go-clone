@@ -36,24 +36,33 @@ type Stream struct {
 	root *StreamNode
 }
 
-func (s *Stream) Get(key string) (any, bool) {
+func (s *Stream) Get(id string) (any, bool) {
 	node := s.root
-	for len(key) > 0 {
-		child, _ := node.findChild(key[0])
+	for len(id) > 0 {
+		child, _ := node.findChild(id[0])
 		if child == nil {
 			return nil, false
 		}
 
-		shared := child.commonPrefixLen(key)
+		shared := child.commonPrefixLen(id)
 		if shared != len(child.prefix) {
 			return nil, false
 		}
 
-		key = key[shared:]
+		id = id[shared:]
 		node = child
 	}
 
 	return node.value, node.isLeaf
+}
+
+func (s *Stream) Insert(id string, fields []string) error {
+	/* TODO:
+	*		1. Create StreamEntry from `fields` and `id`
+	*		2. append entry as child StreamNode at prefix with StreamEntry containing full ID
+	 */
+
+	return nil
 }
 
 type StreamEntry struct {

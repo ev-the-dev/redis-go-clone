@@ -641,5 +641,42 @@ func (s *Server) handleTypeCommand(conn net.Conn, msg *resp.Message) {
 }
 
 func (s *Server) handleXaddCommand(conn net.Conn, msg *resp.Message) {
+	if len(msg.Array) < 5 {
+		conn.Write([]byte(resp.EncodeSimpleErr("Incorrect amount of args for `XADD` command")))
+		return
+	}
 
+	keyMsg := msg.Array[1]
+	idMsg := msg.Array[2]
+	fieldMsgs := msg.Array[3:]
+
+	if len(fieldMsgs)%2 != 0 {
+		conn.Write([]byte(resp.EncodeSimpleErr("Every field needs a value in `XADD` command")))
+		return
+	}
+
+	key, err := keyMsg.ConvStr()
+	if err != nil {
+		log.Printf("%s: XADD: invalid key: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Invalid key type for `XADD` command")))
+		return
+	}
+
+	record, exists := s.store.Get(key)
+	if !exists {
+		// create stream, but check if id provided or '*' provided
+	}
+	if record.Type != resp.Stream {
+		log.Printf("%s: XADD: invalid type: %s", ErrCmdPrefix, record.Type.String())
+		conn.Write([]byte(resp.EncodeSimpleErr("Provided `XADD` Key produced non stream type")))
+		return
+	}
+
+	recStream := record.Value.(*Stream)
+	// recStream.Insert(id, fields)
+	/* TODO:
+	*		1. Parse ID and Fields from `idMsg` and `fieldMsgs`
+	*		2. Implement Insert()
+	*		3. Re-set store record.
+	 */
 }

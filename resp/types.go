@@ -28,6 +28,7 @@ const (
 	Sets
 	SimpleError
 	SimpleString
+	Stream
 	None
 )
 
@@ -51,6 +52,8 @@ func (t RESPType) String() string {
 		return "SimpleError"
 	case SimpleString:
 		return "SimpleString"
+	case Stream:
+		return "Stream"
 	default:
 		return fmt.Sprintf("UnknownType(%d)", t)
 	}
