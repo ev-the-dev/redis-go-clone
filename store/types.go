@@ -11,37 +11,37 @@ const (
 type StoreType uint
 
 const (
-	Array StoreType = iota
-	Booleans
-	Errors
-	String
-	Integer
-	Maps
-	Nulls
-	Sets
-	Streams
-	None
+	ArrayType StoreType = iota
+	BooleanType
+	ErrorType
+	StringType
+	IntegerType
+	MapType
+	NilType
+	SetType
+	StreamType
+	NoneType
 )
 
 func (t StoreType) String() string {
 	switch t {
-	case Array:
+	case ArrayType:
 		return "Array"
-	case Booleans:
+	case BooleanType:
 		return "Booleans"
-	case String:
+	case StringType:
 		return "String"
-	case Integer:
+	case IntegerType:
 		return "Integer"
-	case Maps:
+	case MapType:
 		return "Maps"
-	case Nulls:
+	case NilType:
 		return "Nulls"
-	case Sets:
+	case SetType:
 		return "Sets"
-	case Streams:
+	case StreamType:
 		return "Stream"
-	case None:
+	case NoneType:
 		return "None"
 	default:
 		return fmt.Sprintf("UnknownType(%d)", t)

@@ -11,27 +11,30 @@ import (
 )
 
 func fromRDB(e *rdb.Entry) (*store.Record, error) {
-	var rT resp.RESPType
+	sR := &store.Record{
+		ExpiresAt: e.Expire,
+	}
 
 	switch e.ValType {
 	case rdb.StringEncoded:
-		rT = resp.BulkString
+		sR.Type = store.StringType
+		sR.String = e.Val.(string)
 	case rdb.ListEncoded:
-		rT = resp.Array
+		sR.Type = store.ArrayType
+		// TODO: I believe I need to recurse over `fromRDB` to
+		// appropriately extract all the rdb's nested data.
+		sR.Array = e.Val.()
 	case rdb.SetEncoded, rdb.SortedSetEncoded:
-		rT = resp.Sets
+		sR.Type = store.SetType
+		sR.Array = e.Val
 	case rdb.HashEncoded:
-		rT = resp.Maps
+		sR.Type = store.MapType
+		sR.Map = e.Val
 	default:
 		return nil, fmt.Errorf("%s unsupported rdb type (%s) for entry: %+v", ErrAdaptPrefix, e.ValType.String(), e)
 	}
 
-	// NOTE: If need be we could also return the Key here
-	return &store.Record{
-		ExpiresAt: e.Expire,
-		Type:      rT,
-		Value:     e.Val,
-	}, nil
+	return sR, nil
 }
 
 // TODO: Think about removing `expiry` from this as there are tons of cases
@@ -109,6 +112,29 @@ func fromRESPMapToStoreMap(m *resp.Message, expiry time.Time) (map[string]*store
 	return sM, nil
 }
 
+func fromStoreTypeToRESPType(rt resp.RESPType) (store.StoreType, error) {
+	switch rt {
+	case resp.Array:
+		return store.ArrayType, nil
+	case resp.Booleans:
+		return store.BooleanType, nil
+	case resp.BulkString, resp.SimpleString:
+		return store.StringType, nil
+	case resp.Integer:
+		return store.IntegerType, nil
+	case resp.Maps:
+		return store.MapType, nil
+	case resp.Nulls:
+		return store.NilType, nil
+	case resp.Sets:
+		return store.SetType, nil
+	case resp.SimpleError:
+		return store.ErrorType, nil
+	default:
+		return store.ErrorType, fmt.Errorf("%s from store type to resp type: unable to map (%d)", ErrAdaptPrefix, rt)
+	}
+}
+
 // NOTE: Go doesn't allow negative indices for array/slice accessing.
 // This adapter helps support Redis functionality that does allow it.
 func NormalizeIndex(idx int, length int) int {
@@ -148,8 +174,8 @@ func toBulkRESPString(r []*store.Record) ([]string, error) {
 func toRESPString(r *store.Record) (string, error) {
 	var b strings.Builder
 	switch r.Type {
-	case resp.Array, resp.Sets:
-		arrVal := r.Value.([]*store.Record)
+	case store.ArrayType, store.SetType:
+		arrVal := r.Array
 		for _, v := range arrVal {
 			nestedValue, err := toRESPString(v)
 			if err != nil {
@@ -158,21 +184,19 @@ func toRESPString(r *store.Record) (string, error) {
 			b.WriteString(nestedValue)
 		}
 		return resp.EncodeArray(len(arrVal), b.String()), nil
-	case resp.Booleans:
-		b.WriteString(resp.EncodeBoolean(r.Value.(bool)))
-	case resp.BulkString:
-		b.WriteString(resp.EncodeBulkString(r.Value.(string)))
-	case resp.SimpleString:
-		b.WriteString(resp.EncodeSimpleString(r.Value.(string)))
-	case resp.Integer:
-		b.WriteString(resp.EncodeInteger(r.Value.(int)))
-	case resp.Maps:
-		s, err := toRESPStringFromStoreMap(b, r.Value.(map[string]*store.Record))
+	case store.BooleanType:
+		b.WriteString(resp.EncodeBoolean(r.Boolean))
+	case store.StringType:
+		b.WriteString(resp.EncodeBulkString(r.String))
+	case store.IntegerType:
+		b.WriteString(resp.EncodeInteger(r.Integer))
+	case store.MapType:
+		s, err := toRESPStringFromStoreMap(b, r.Map)
 		if err != nil {
 			return "", fmt.Errorf("%s to resp: %w", ErrAdaptPrefix, err)
 		}
 		b.WriteString(s)
-	case resp.Nulls:
+	case store.NilType:
 		b.WriteString(resp.EncodeNulls())
 	default:
 		return "", fmt.Errorf("%s unsupported type (%s) from store record: %+v", ErrAdaptPrefix, r.Type.String(), r)

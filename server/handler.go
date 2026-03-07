@@ -44,12 +44,12 @@ func (s *Server) handleBLPOPCommand(conn net.Conn, msg *resp.Message) {
 		}
 
 		record, exists := s.store.Get(key)
-		if !exists || (record.Type == store.Array && len(record.Array) == 0) {
+		if !exists || (record.Type == store.ArrayType && len(record.Array) == 0) {
 			emptyKeys = append(emptyKeys, key)
 			continue
 		}
 
-		if record.Type != store.Array {
+		if record.Type != store.ArrayType {
 			log.Printf("%s: BLPOP: invalid type from key (%s): %s", ErrCmdPrefix, key, record.Type.String())
 			conn.Write([]byte(resp.EncodeSimpleErr(fmt.Sprintf("Provided `BLPOP` Key (%s) produced non array/list type", key))))
 			return
@@ -86,19 +86,19 @@ func (s *Server) handleBLPOPCommand(conn net.Conn, msg *resp.Message) {
 		if !ok {
 			// NOTE: not entirely sure what to do here
 		}
-		if res.rec.Type != resp.Array {
+		if res.rec.Type != store.ArrayType {
 			log.Printf("%s: BLPOP: blocking: invalid type from key (%s): %s", ErrCmdPrefix, res.key, res.rec.Type.String())
 			conn.Write([]byte(resp.EncodeSimpleErr(fmt.Sprintf("Provided `BLPOP` Key (%s) produced non array/list type", res.key))))
 			return
 		}
 
-		list := res.rec.Value.([]*store.Record)
+		list := res.rec.Array
 		val := list[0]
-		res.rec.Value = list[1:]
+		res.rec.Array = list[1:]
 
 		s.store.Set(res.key, res.rec)
 
-		if res.rec.Type == resp.Array && len(res.rec.Value.([]*store.Record)) != 0 {
+		if res.rec.Type == store.ArrayType && len(res.rec.Array) != 0 {
 			s.blockingManager.NotifyWatchers(res.key, res.rec)
 		}
 
@@ -309,10 +309,10 @@ func (s *Server) handleLlenCommand(conn net.Conn, msg *resp.Message) {
 
 	var length int
 	switch record.Type {
-	case resp.Array, resp.Sets:
-		length = len(record.Value.([]*store.Record))
-	case resp.Maps:
-		length = len(record.Value.(map[string]*store.Record))
+	case store.ArrayType, store.SetType:
+		length = len(record.Array)
+	case store.MapType:
+		length = len(record.Map)
 	default:
 		log.Printf("%s: LLEN: invalid type: %s", ErrCmdPrefix, record.Type.String())
 		conn.Write([]byte(resp.EncodeSimpleErr("Provided `LLEN` Key produced non-keyed type")))
@@ -344,13 +344,13 @@ func (s *Server) handleLpopCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
-	if record.Type != resp.Array {
+	if record.Type != store.ArrayType {
 		log.Printf("%s: LPOP: invalid type: %s", ErrCmdPrefix, record.Type.String())
 		conn.Write([]byte(resp.EncodeSimpleErr("Provided `LPOP` Key produced non array/list type")))
 		return
 	}
 
-	list := record.Value.([]*store.Record)
+	list := record.Array
 
 	if len(list) == 0 {
 		conn.Write([]byte(resp.EncodeNulls()))
@@ -376,7 +376,7 @@ func (s *Server) handleLpopCommand(conn net.Conn, msg *resp.Message) {
 	count = min(len(list), count)
 
 	poppedSlice := list[0:count]
-	record.Value = list[count:]
+	record.Array = list[count:]
 
 	s.store.Set(key, record)
 
@@ -409,12 +409,12 @@ func (s *Server) handleLpushCommand(conn net.Conn, msg *resp.Message) {
 	record, exists := s.store.Get(key)
 	if !exists {
 		record = &store.Record{
-			Type:  resp.Array,
-			Value: make([]*store.Record, 0, len(valMsgs)),
+			Type:  store.ArrayType,
+			Array: make([]*store.Record, 0, len(valMsgs)),
 		}
 	}
 
-	if record.Type != resp.Array {
+	if record.Type != store.ArrayType {
 		log.Printf("%s: LPUSH: invalid type: %s", ErrCmdPrefix, record.Type.String())
 		conn.Write([]byte(resp.EncodeSimpleErr("Provided `LPUSH` Key produced non array/list type")))
 		return
@@ -433,12 +433,12 @@ func (s *Server) handleLpushCommand(conn net.Conn, msg *resp.Message) {
 		newVals[len(valMsgs)-1-i] = valRecord
 	}
 
-	record.Value = append(newVals, record.Value.([]*store.Record)...)
+	record.Array = append(newVals, record.Array...)
 
 	s.store.Set(key, record)
 	s.blockingManager.NotifyWatchers(key, record)
 
-	conn.Write([]byte(resp.EncodeInteger(len(record.Value.([]*store.Record)))))
+	conn.Write([]byte(resp.EncodeInteger(len(record.Array))))
 }
 
 // NOTE: Redis seems to default to an empty array when indices are out of bounds
@@ -468,7 +468,7 @@ func (s *Server) handleLrangeCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
-	if record.Type != resp.Array {
+	if record.Type != store.ArrayType {
 		log.Printf("%s: LRANGE: invalid type: %s", ErrCmdPrefix, record.Type.String())
 		conn.Write([]byte(resp.EncodeSimpleErr("Provided `LRANGE` Key produced non array/list type")))
 		return
@@ -488,7 +488,7 @@ func (s *Server) handleLrangeCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
-	recArr := record.Value.([]*store.Record)
+	recArr := record.Array
 	startIdx = NormalizeIndex(startIdx, len(recArr))
 	endIdx = NormalizeIndex(endIdx, len(recArr))
 
@@ -533,12 +533,12 @@ func (s *Server) handleRpushCommand(conn net.Conn, msg *resp.Message) {
 	record, exists := s.store.Get(key)
 	if !exists {
 		record = &store.Record{
-			Type:  resp.Array,
-			Value: make([]*store.Record, 0, len(valMsgs)),
+			Type:  store.ArrayType,
+			Array: make([]*store.Record, 0, len(valMsgs)),
 		}
 	}
 
-	if record.Type != resp.Array {
+	if record.Type != store.ArrayType {
 		log.Printf("%s: RPUSH: invalid type: %s", ErrCmdPrefix, record.Type.String())
 		conn.Write([]byte(resp.EncodeSimpleErr("Provided `RPUSH` Key produced non array/list type")))
 		return
@@ -549,13 +549,13 @@ func (s *Server) handleRpushCommand(conn net.Conn, msg *resp.Message) {
 		if err != nil {
 			log.Printf("%s RPUSH: value iter: %v", ErrCmdPrefix, err)
 		}
-		record.Value = append(record.Value.([]*store.Record), valRecord)
+		record.Array = append(record.Array, valRecord)
 	}
 
 	s.store.Set(key, record)
 	s.blockingManager.NotifyWatchers(key, record)
 
-	conn.Write([]byte(resp.EncodeInteger(len(record.Value.([]*store.Record)))))
+	conn.Write([]byte(resp.EncodeInteger(len(record.Array))))
 }
 
 func (s *Server) handleSetCommand(conn net.Conn, msg *resp.Message) {
@@ -628,12 +628,14 @@ func (s *Server) handleTypeCommand(conn net.Conn, msg *resp.Message) {
 	var stype string
 
 	switch record.Type {
-	case resp.Array:
+	case store.ArrayType:
 		stype = "list"
-	case resp.BulkString, resp.SimpleString:
+	case store.StringType:
 		stype = "string"
-	case resp.Sets:
+	case store.SetType:
 		stype = "set"
+	case store.StreamType:
+		stype = "stream"
 	default:
 		stype = "none"
 	}
@@ -666,7 +668,7 @@ func (s *Server) handleXaddCommand(conn net.Conn, msg *resp.Message) {
 	if !exists {
 		// create stream, but check if id provided or '*' provided
 	}
-	if record.Type != resp.Stream {
+	if record.Type != store.StreamType {
 		log.Printf("%s: XADD: invalid type: %s", ErrCmdPrefix, record.Type.String())
 		conn.Write([]byte(resp.EncodeSimpleErr("Provided `XADD` Key produced non stream type")))
 		return

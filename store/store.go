@@ -17,6 +17,7 @@ type Record struct {
 	Boolean   bool
 	Integer   int
 	Map       map[string]*Record
+	Streams   Stream
 	String    string
 }
 
@@ -31,7 +32,7 @@ func (s *Store) Get(k string) (*Record, bool) {
 	item, exists := s.data[k]
 	if !exists {
 		s.mu.RUnlock()
-		return &Record{Type: None}, exists
+		return &Record{Type: NilType}, exists
 	}
 
 	isExpired := !item.ExpiresAt.IsZero() && time.Now().After(item.ExpiresAt)
