@@ -3,8 +3,6 @@ package store
 import (
 	"sync"
 	"time"
-
-	"github.com/ev-the-dev/redis-go-clone/resp"
 )
 
 type Store struct {
@@ -12,13 +10,14 @@ type Store struct {
 	mu   sync.RWMutex
 }
 
-// NOTE: Consider refactoring this struct to look more like
-// `resp.Message` to avoid having to perform a lot of runtime
-// type checks.
 type Record struct {
 	ExpiresAt time.Time
-	Type      resp.RESPType
-	Value     any
+	Type      StoreType
+	Array     []*Record
+	Boolean   bool
+	Integer   int
+	Map       map[string]*Record
+	String    string
 }
 
 func New() *Store {
@@ -32,7 +31,7 @@ func (s *Store) Get(k string) (*Record, bool) {
 	item, exists := s.data[k]
 	if !exists {
 		s.mu.RUnlock()
-		return &Record{Type: resp.None}, exists
+		return &Record{Type: None}, exists
 	}
 
 	isExpired := !item.ExpiresAt.IsZero() && time.Now().After(item.ExpiresAt)

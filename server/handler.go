@@ -44,20 +44,20 @@ func (s *Server) handleBLPOPCommand(conn net.Conn, msg *resp.Message) {
 		}
 
 		record, exists := s.store.Get(key)
-		if !exists || (record.Type == resp.Array && len(record.Value.([]*store.Record)) == 0) {
+		if !exists || (record.Type == store.Array && len(record.Array) == 0) {
 			emptyKeys = append(emptyKeys, key)
 			continue
 		}
 
-		if record.Type != resp.Array {
+		if record.Type != store.Array {
 			log.Printf("%s: BLPOP: invalid type from key (%s): %s", ErrCmdPrefix, key, record.Type.String())
 			conn.Write([]byte(resp.EncodeSimpleErr(fmt.Sprintf("Provided `BLPOP` Key (%s) produced non array/list type", key))))
 			return
 		}
 
-		list := record.Value.([]*store.Record)
+		list := record.Array
 		val := list[0]
-		record.Value = list[1:]
+		record.Array = list[1:]
 
 		s.store.Set(key, record)
 
