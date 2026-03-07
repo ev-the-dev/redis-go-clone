@@ -20,21 +20,67 @@ func fromRDB(e *rdb.Entry) (*store.Record, error) {
 		sR.Type = store.StringType
 		sR.String = e.Val.(string)
 	case rdb.ListEncoded:
+		list, err := fromRDPArrayToStoreArray(e)
+		if err != nil {
+			return nil, fmt.Errorf("%s from rdb: case list: %w", ErrAdaptPrefix, err)
+		}
 		sR.Type = store.ArrayType
-		// TODO: I believe I need to recurse over `fromRDB` to
-		// appropriately extract all the rdb's nested data.
-		sR.Array = e.Val.([]any)
+		sR.Array = list
 	case rdb.SetEncoded, rdb.SortedSetEncoded:
+		set, err := fromRDPArrayToStoreArray(e)
+		if err != nil {
+			return nil, fmt.Errorf("%s from rdb: case set: %w", ErrAdaptPrefix, err)
+		}
 		sR.Type = store.SetType
-		sR.Array = e.Val.([]any)
+		sR.Array = set
 	case rdb.HashEncoded:
+		sM, err := fromRDBMapToStoreMap(e)
+		if err != nil {
+			return nil, fmt.Errorf("%s from rdb: case hash map: %w", ErrAdaptPrefix, err)
+		}
 		sR.Type = store.MapType
-		sR.Map = e.Val.(map[string]any)
+		sR.Map = sM
 	default:
 		return nil, fmt.Errorf("%s unsupported rdb type (%s) for entry: %+v", ErrAdaptPrefix, e.ValType.String(), e)
 	}
 
 	return sR, nil
+}
+
+func fromRDPArrayToStoreArray(e *rdb.Entry) ([]*store.Record, error) {
+	if e.ValType != rdb.ListEncoded && e.ValType != rdb.SetEncoded && e.ValType != rdb.SortedSetEncoded {
+		return nil, fmt.Errorf("%s trying to adapt RDB (Array|Set) but got (%s)", ErrAdaptPrefix, e.ValType.String())
+	}
+
+	storeArr := make([]*store.Record, len(e.Val.([]*rdb.Entry)))
+	for i, v := range e.Val.([]*rdb.Entry) {
+		sR, err := fromRDB(v)
+		if err != nil {
+			return nil, fmt.Errorf("%s from rdb: array: %w", ErrAdaptPrefix, err)
+		}
+
+		storeArr[i] = sR
+	}
+
+	return storeArr, nil
+}
+
+func fromRDBMapToStoreMap(e *rdb.Entry) (map[string]*store.Record, error) {
+	if e.ValType != rdb.HashEncoded {
+		return nil, fmt.Errorf("%s trying to adapt from RDB (Map) but got (%s)", ErrAdaptPrefix, e.ValType.String())
+	}
+
+	sM := make(map[string]*store.Record)
+	for k, v := range e.Val.(map[string]*rdb.Entry) {
+		storeVal, err := fromRDB(v)
+		if err != nil {
+			return nil, fmt.Errorf("%s from rdb: map value: %w", ErrAdaptPrefix, err)
+		}
+
+		sM[k] = storeVal
+	}
+
+	return sM, nil
 }
 
 // TODO: Think about removing `expiry` from this as there are tons of cases
