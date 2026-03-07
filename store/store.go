@@ -17,7 +17,7 @@ type Record struct {
 	Boolean   bool
 	Integer   int
 	Map       map[string]*Record
-	Streams   Stream
+	Streams   *Stream
 	String    string
 }
 
