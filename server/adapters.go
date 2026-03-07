@@ -92,13 +92,13 @@ func fromRESPArrayToStoreArray(m *resp.Message, expiry time.Time) ([]*store.Reco
 	}
 
 	rS := make([]*store.Record, len(m.Array))
-	for _, v := range m.Array {
+	for i, v := range m.Array {
 		sR, err := fromRESP(v, expiry)
 		if err != nil {
 			return nil, fmt.Errorf("%s from resp: array: %w", ErrAdaptPrefix, err)
 		}
 
-		rS = append(rS, sR)
+		rS[i] = sR
 	}
 
 	return rS, nil
