@@ -23,13 +23,13 @@ func fromRDB(e *rdb.Entry) (*store.Record, error) {
 		sR.Type = store.ArrayType
 		// TODO: I believe I need to recurse over `fromRDB` to
 		// appropriately extract all the rdb's nested data.
-		sR.Array = e.Val.()
+		sR.Array = e.Val.([]any)
 	case rdb.SetEncoded, rdb.SortedSetEncoded:
 		sR.Type = store.SetType
-		sR.Array = e.Val
+		sR.Array = e.Val.([]any)
 	case rdb.HashEncoded:
 		sR.Type = store.MapType
-		sR.Map = e.Val
+		sR.Map = e.Val.(map[string]any)
 	default:
 		return nil, fmt.Errorf("%s unsupported rdb type (%s) for entry: %+v", ErrAdaptPrefix, e.ValType.String(), e)
 	}
@@ -41,39 +41,49 @@ func fromRDB(e *rdb.Entry) (*store.Record, error) {
 // where we'd use this but the Message type doesn't warrant an expiration.
 // Instead opt for a method on `*store.Record#WithExpiry`.
 func fromRESP(m *resp.Message, expiry time.Time) (*store.Record, error) {
-	var v any
+	sR := &store.Record{
+		ExpiresAt: expiry,
+	}
 
 	switch m.Type {
 	// TODO: Have to revisit how resp Sets behave and adapt accordingly
-	case resp.Array, resp.Sets:
+	case resp.Array:
 		rS, err := fromRESPArrayToStoreArray(m, expiry)
 		if err != nil {
 			return nil, fmt.Errorf("%s from resp: case array: %w", ErrAdaptPrefix, err)
 		}
-		v = rS
+		sR.Type = store.ArrayType
+		sR.Array = rS
 	case resp.Booleans:
-		v = m.Boolean
+		sR.Type = store.BooleanType
+		sR.Boolean = m.Boolean
 	case resp.BulkString, resp.SimpleString:
-		v = m.String
+		sR.Type = store.StringType
+		sR.String = m.String
 	case resp.Integer:
-		v = m.Integer
+		sR.Type = store.IntegerType
+		sR.Integer = m.Integer
 	case resp.Maps:
 		sM, err := fromRESPMapToStoreMap(m, expiry)
 		if err != nil {
 			return nil, fmt.Errorf("%s from resp: case map: %w", ErrAdaptPrefix, err)
 		}
-		v = sM
+		sR.Type = store.MapType
+		sR.Map = sM
 	case resp.Nulls:
-		v = nil
+		sR.Type = store.NilType
+	case resp.Sets:
+		rS, err := fromRESPArrayToStoreArray(m, expiry)
+		if err != nil {
+			return nil, fmt.Errorf("%s from resp: case set: %w", ErrAdaptPrefix, err)
+		}
+		sR.Type = store.SetType
+		sR.Array = rS
 	default:
 		return nil, fmt.Errorf("%s unsupported resp type (%s) for message: %+v", ErrAdaptPrefix, m.Type.String(), m)
 	}
 
-	return &store.Record{
-		ExpiresAt: expiry,
-		Type:      m.Type,
-		Value:     v,
-	}, nil
+	return sR, nil
 }
 
 func fromRESPArrayToStoreArray(m *resp.Message, expiry time.Time) ([]*store.Record, error) {
@@ -110,29 +120,6 @@ func fromRESPMapToStoreMap(m *resp.Message, expiry time.Time) (map[string]*store
 	}
 
 	return sM, nil
-}
-
-func fromStoreTypeToRESPType(rt resp.RESPType) (store.StoreType, error) {
-	switch rt {
-	case resp.Array:
-		return store.ArrayType, nil
-	case resp.Booleans:
-		return store.BooleanType, nil
-	case resp.BulkString, resp.SimpleString:
-		return store.StringType, nil
-	case resp.Integer:
-		return store.IntegerType, nil
-	case resp.Maps:
-		return store.MapType, nil
-	case resp.Nulls:
-		return store.NilType, nil
-	case resp.Sets:
-		return store.SetType, nil
-	case resp.SimpleError:
-		return store.ErrorType, nil
-	default:
-		return store.ErrorType, fmt.Errorf("%s from store type to resp type: unable to map (%d)", ErrAdaptPrefix, rt)
-	}
 }
 
 // NOTE: Go doesn't allow negative indices for array/slice accessing.
