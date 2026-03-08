@@ -1,11 +1,14 @@
 package store
 
-import "fmt"
+import (
+	"fmt"
+	"log"
+)
 
 type ErrPrefix string
 
 const (
-	ErrGetPrefix ErrPrefix = "store: GET:"
+	ErrStreamPrefix ErrPrefix = "store: stream:"
 )
 
 type StoreType uint
@@ -49,7 +52,29 @@ func (t StoreType) String() string {
 }
 
 type Stream struct {
-	root *StreamNode
+	Root *StreamNode
+}
+
+func NewStream(id string, fields []*Record) *Stream {
+	id, err := normalizeStreamId(id)
+	if err != nil {
+		log.Printf("%s new stream: normalize id: %v", ErrStreamPrefix, err)
+	}
+
+	return &Stream{
+		Root: &StreamNode{
+			Prefix: id,
+			IsLeaf: true,
+			Value: &StreamEntry{
+				ID:     id,
+				Fields: fields,
+			},
+		},
+	}
+}
+
+func normalizeStreamId(id string) (string, error) {
+
 }
 
 func (s *Stream) Get(id string) (any, bool) {
@@ -83,20 +108,20 @@ func (s *Stream) Insert(id string, fields []string) error {
 
 type StreamEntry struct {
 	ID     string
-	Fields []string
+	Fields []*Record
 }
 
 type StreamNode struct {
-	prefix   string
-	children []*StreamNode
-	value    *StreamEntry
-	isLeaf   bool
+	Prefix   string
+	Children []*StreamNode
+	Value    *StreamEntry
+	IsLeaf   bool
 }
 
 func (sn *StreamNode) commonPrefixLen(key string) int {
-	l := min(len(sn.prefix), len(key))
+	l := min(len(sn.Prefix), len(key))
 	for i := range l {
-		if sn.prefix[i] != key[i] {
+		if sn.Prefix[i] != key[i] {
 			return i
 		}
 	}
@@ -110,12 +135,12 @@ func (sn *StreamNode) commonPrefixLen(key string) int {
 * why the comparison between `first` and `b`
  */
 func (sn *StreamNode) findChild(b byte) (*StreamNode, int) {
-	lo, hi := 0, len(sn.children)-1
+	lo, hi := 0, len(sn.Children)-1
 	for lo <= hi {
 		mid := (lo + hi) / 2
-		first := sn.children[mid].prefix[0]
+		first := sn.Children[mid].Prefix[0]
 		if first == b {
-			return sn.children[mid], mid
+			return sn.Children[mid], mid
 		} else if first < b {
 			lo = mid + 1
 		} else {

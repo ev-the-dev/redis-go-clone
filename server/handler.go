@@ -657,9 +657,31 @@ func (s *Server) handleXaddCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
+	id, err := idMsg.ConvStr()
+	if err != nil {
+		log.Printf("%s XADD: invalid id: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Invalid id type for `XADD` command")))
+		return
+	}
+	id, err = store.NormalizeStreamId(id)
+	if err != nil {
+		log.Printf("%s XADD: normalizing id: %v", ErrCmdPrefix, err)
+		conn.Write([]byte(resp.EncodeSimpleErr("Unable to normalize id type for `XADD` command")))
+		return
+	}
+
+	fields := make([]*store.Record, len(fieldMsgs))
+	for i, f := range fieldMsgs {
+		fieldRec, err := fromRESP(f, time.Time{})
+		if err != nil {
+			log.Printf("%s XADD: field iter: %v", ErrCmdPrefix, err)
+		}
+		fields[i] = fieldRec
+	}
+
 	key, err := keyMsg.ConvStr()
 	if err != nil {
-		log.Printf("%s: XADD: invalid key: %v", ErrCmdPrefix, err)
+		log.Printf("%s XADD: invalid key: %v", ErrCmdPrefix, err)
 		conn.Write([]byte(resp.EncodeSimpleErr("Invalid key type for `XADD` command")))
 		return
 	}
@@ -667,9 +689,18 @@ func (s *Server) handleXaddCommand(conn net.Conn, msg *resp.Message) {
 	record, exists := s.store.Get(key)
 	if !exists {
 		// create stream, but check if id provided or '*' provided
+		stream := store.NewStream(id, fields)
+		record = &store.Record{
+			Type:    store.StreamType,
+			Streams: stream,
+		}
+		s.store.Set(key, record)
+		conn.Write([]byte(resp.EncodeSimpleString(stream.Root.Value.ID)))
+		return
 	}
+
 	if record.Type != store.StreamType {
-		log.Printf("%s: XADD: invalid type: %s", ErrCmdPrefix, record.Type.String())
+		log.Printf("%s XADD: invalid type: %s", ErrCmdPrefix, record.Type.String())
 		conn.Write([]byte(resp.EncodeSimpleErr("Provided `XADD` Key produced non stream type")))
 		return
 	}
