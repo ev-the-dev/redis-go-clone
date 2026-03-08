@@ -56,7 +56,7 @@ type Stream struct {
 }
 
 func NewStream(id string, fields []*Record) *Stream {
-	id, err := normalizeStreamId(id)
+	id, err := NormalizeStreamId(id)
 	if err != nil {
 		log.Printf("%s new stream: normalize id: %v", ErrStreamPrefix, err)
 	}
@@ -73,12 +73,12 @@ func NewStream(id string, fields []*Record) *Stream {
 	}
 }
 
-func normalizeStreamId(id string) (string, error) {
+func NormalizeStreamId(id string) (string, error) {
 
 }
 
 func (s *Stream) Get(id string) (any, bool) {
-	node := s.root
+	node := s.Root
 	for len(id) > 0 {
 		child, _ := node.findChild(id[0])
 		if child == nil {
@@ -86,7 +86,7 @@ func (s *Stream) Get(id string) (any, bool) {
 		}
 
 		shared := child.commonPrefixLen(id)
-		if shared != len(child.prefix) {
+		if shared != len(child.Prefix) {
 			return nil, false
 		}
 
@@ -94,7 +94,7 @@ func (s *Stream) Get(id string) (any, bool) {
 		node = child
 	}
 
-	return node.value, node.isLeaf
+	return node.Value, node.IsLeaf
 }
 
 func (s *Stream) Insert(id string, fields []string) error {
