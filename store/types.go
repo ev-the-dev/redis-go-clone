@@ -3,6 +3,9 @@ package store
 import (
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
+	"time"
 )
 
 type ErrPrefix string
@@ -52,11 +55,12 @@ func (t StoreType) String() string {
 }
 
 type Stream struct {
-	Root *StreamNode
+	Root   *StreamNode
+	lastID string
 }
 
 func NewStream(id string, fields []*Record) *Stream {
-	id, err := NormalizeStreamId(id)
+	id, err := resolveStreamID(id)
 	if err != nil {
 		log.Printf("%s new stream: normalize id: %v", ErrStreamPrefix, err)
 	}
@@ -73,8 +77,57 @@ func NewStream(id string, fields []*Record) *Stream {
 	}
 }
 
-func NormalizeStreamId(id string) (string, error) {
+// NOTE: sequences will most likely never get very large.
+// Can consider using a smaller data type instead of int64,
+// perhaps uint16, or something along those lines.
+func parseStreamId(id string) (int64, int64, error) {
+	split := strings.Split(id, "-")
+	ts, err := strconv.ParseInt(split[0], 10, 0)
+	if err != nil {
+		return 0, 0, fmt.Errorf("%s parse stream id: timestamp: %w", ErrStreamPrefix, err)
+	}
 
+	seq, err := strconv.ParseInt(split[1], 10, 0)
+	if err != nil {
+		return 0, 0, fmt.Errorf("%s parse stream id: sequence: %w", ErrStreamPrefix, err)
+	}
+
+	return ts, seq, nil
+}
+
+func resolveStreamID(id string, lastId string) (string, error) {
+	now := time.Now().UnixMilli()
+
+	lastTS, lastSeq, err := parseStreamId(lastId)
+	if err != nil {
+		return "", err
+	}
+
+	// Full * Scenario
+	if id == "*" {
+		if now > lastTS {
+			return fmt.Sprintf("%d-%d%d", now, 0, 0), nil
+		}
+
+		if lastSeq >= 9 {
+			return fmt.Sprintf("%d-%d", lastTS, lastSeq+1), nil
+		} else {
+			return fmt.Sprintf("%d-%d%d", lastTS, 0, lastSeq+1), nil
+		}
+	}
+
+	ts, seq, err := parseStreamId(id)
+	if err != nil {
+		return "", err
+	}
+	if ts < lastTS {
+		return "", fmt.Errorf("provided ID for stream is older than current stream ID")
+	}
+
+	// Partial * Scenario
+	if seq == "*" {
+
+	}
 }
 
 func (s *Stream) Get(id string) (any, bool) {

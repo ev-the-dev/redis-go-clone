@@ -663,12 +663,6 @@ func (s *Server) handleXaddCommand(conn net.Conn, msg *resp.Message) {
 		conn.Write([]byte(resp.EncodeSimpleErr("Invalid id type for `XADD` command")))
 		return
 	}
-	id, err = store.NormalizeStreamId(id)
-	if err != nil {
-		log.Printf("%s XADD: normalizing id: %v", ErrCmdPrefix, err)
-		conn.Write([]byte(resp.EncodeSimpleErr("Unable to normalize id type for `XADD` command")))
-		return
-	}
 
 	fields := make([]*store.Record, len(fieldMsgs))
 	for i, f := range fieldMsgs {
