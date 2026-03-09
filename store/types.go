@@ -60,7 +60,7 @@ type Stream struct {
 }
 
 func NewStream(id string, fields []*Record) *Stream {
-	id, err := resolveStreamID(id)
+	id, err := resolveStreamID(id, "")
 	if err != nil {
 		log.Printf("%s new stream: normalize id: %v", ErrStreamPrefix, err)
 	}
@@ -77,56 +77,107 @@ func NewStream(id string, fields []*Record) *Stream {
 	}
 }
 
+type streamNodeId struct {
+	timestamp *int64
+	seq       *int64
+}
+
 // NOTE: sequences will most likely never get very large.
 // Can consider using a smaller data type instead of int64,
 // perhaps uint16, or something along those lines.
-func parseStreamId(id string) (int64, int64, error) {
+func parseStreamId(id string) (*streamNodeId, error) {
 	split := strings.Split(id, "-")
-	ts, err := strconv.ParseInt(split[0], 10, 0)
-	if err != nil {
-		return 0, 0, fmt.Errorf("%s parse stream id: timestamp: %w", ErrStreamPrefix, err)
+	snId := &streamNodeId{}
+
+	if len(split) == 1 {
+		if split[0] == "*" {
+			return snId, nil
+		}
+
+		timestamp, err := strconv.ParseInt(split[0], 10, 0)
+		if err != nil {
+			return nil, fmt.Errorf("%s parse stream id: timestamp: %w", ErrStreamPrefix, err)
+		}
+
+		snId.timestamp = &timestamp
+		return snId, nil
 	}
 
-	seq, err := strconv.ParseInt(split[1], 10, 0)
-	if err != nil {
-		return 0, 0, fmt.Errorf("%s parse stream id: sequence: %w", ErrStreamPrefix, err)
+	if len(split) == 2 {
+		timestamp, err := strconv.ParseInt(split[0], 10, 0)
+		if err != nil {
+			return nil, fmt.Errorf("%s parse stream id: timestamp: %w", ErrStreamPrefix, err)
+		}
+		snId.timestamp = &timestamp
+
+		if split[1] == "*" {
+			return snId, nil
+		}
+
+		seq, err := strconv.ParseInt(split[1], 10, 0)
+		if err != nil {
+			return nil, fmt.Errorf("%s parse stream id: sequence: %w", ErrStreamPrefix, err)
+		}
+		snId.seq = &seq
+
+		return snId, nil
 	}
 
-	return ts, seq, nil
+	return nil, fmt.Errorf("%s parse stream id: incorrect id format: %s", ErrStreamPrefix, id)
 }
 
 func resolveStreamID(id string, lastId string) (string, error) {
+	if lastId == "" {
+		return id, nil
+	}
+
 	now := time.Now().UnixMilli()
 
-	lastTS, lastSeq, err := parseStreamId(lastId)
+	snId, err := parseStreamId(id)
+	if err != nil {
+		return "", err
+	}
+
+	lastSnId, err := parseStreamId(lastId)
 	if err != nil {
 		return "", err
 	}
 
 	// Full * Scenario
-	if id == "*" {
-		if now > lastTS {
+	if snId.timestamp == nil {
+		if now > *lastSnId.timestamp {
 			return fmt.Sprintf("%d-%d%d", now, 0, 0), nil
 		}
 
-		if lastSeq >= 9 {
-			return fmt.Sprintf("%d-%d", lastTS, lastSeq+1), nil
+		if *lastSnId.seq >= 9 {
+			return fmt.Sprintf("%d-%d", *lastSnId.timestamp, *lastSnId.seq+1), nil
 		} else {
-			return fmt.Sprintf("%d-%d%d", lastTS, 0, lastSeq+1), nil
+			return fmt.Sprintf("%d-%d%d", *lastSnId.timestamp, 0, *lastSnId.seq+1), nil
 		}
 	}
 
-	ts, seq, err := parseStreamId(id)
-	if err != nil {
-		return "", err
-	}
-	if ts < lastTS {
-		return "", fmt.Errorf("provided ID for stream is older than current stream ID")
+	if snId.timestamp != nil && *snId.timestamp < *lastSnId.timestamp {
+		return "", fmt.Errorf("provided ID timestamp for stream is older than current stream ID timestamp")
 	}
 
 	// Partial * Scenario
-	if seq == "*" {
+	if snId.seq == nil {
+		if *lastSnId.seq >= 9 {
+			return fmt.Sprintf("%d-%d", *snId.timestamp, *lastSnId.seq+1), nil
+		} else {
+			return fmt.Sprintf("%d-%d%d", *snId.timestamp, 0, *lastSnId.seq+1), nil
+		}
+	}
 
+	// Explicit Scenario
+	if snId.seq != nil && *snId.seq <= *lastSnId.seq {
+		return "", fmt.Errorf("provided ID sequence for stream is older than current stream ID sequence")
+	}
+
+	if *snId.seq >= 9 {
+		return fmt.Sprintf("%d-%d", *snId.timestamp, *snId.seq+1), nil
+	} else {
+		return fmt.Sprintf("%d-%d%d", *snId.timestamp, 0, *snId.seq+1), nil
 	}
 }
 
