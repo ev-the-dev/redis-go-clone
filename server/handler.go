@@ -682,8 +682,13 @@ func (s *Server) handleXaddCommand(conn net.Conn, msg *resp.Message) {
 
 	record, exists := s.store.Get(key)
 	if !exists {
-		// create stream, but check if id provided or '*' provided
-		stream := store.NewStream(id, fields)
+		stream, err := store.NewStream(id, fields)
+		if err != nil {
+			log.Printf("%s XADD: new stream: %v", ErrCmdPrefix, err)
+			conn.Write([]byte(resp.EncodeSimpleErr("Unable to create new stream for `XADD` command")))
+			return
+		}
+
 		record = &store.Record{
 			Type:    store.StreamType,
 			Streams: stream,

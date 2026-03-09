@@ -59,13 +59,15 @@ type Stream struct {
 	lastID string
 }
 
-func NewStream(id string, fields []*Record) *Stream {
+func NewStream(id string, fields []*Record) (*Stream, error) {
 	id, err := resolveStreamID(id, "")
 	if err != nil {
-		log.Printf("%s new stream: normalize id: %v", ErrStreamPrefix, err)
+		log.Printf("%s new stream: resolve id: %v", ErrStreamPrefix, err)
+		return nil, fmt.Errorf("%s new stream: resolve id: %w", ErrStreamPrefix, err)
 	}
 
 	return &Stream{
+		lastID: id,
 		Root: &StreamNode{
 			Prefix: id,
 			IsLeaf: true,
@@ -74,7 +76,7 @@ func NewStream(id string, fields []*Record) *Stream {
 				Fields: fields,
 			},
 		},
-	}
+	}, nil
 }
 
 type streamNodeId struct {
@@ -82,10 +84,11 @@ type streamNodeId struct {
 	seq       *int64
 }
 
-// NOTE: sequences will most likely never get very large.
-// Can consider using a smaller data type instead of int64,
-// perhaps uint16, or something along those lines.
-func parseStreamId(id string) (*streamNodeId, error) {
+func parseStreamID(id string) (*streamNodeId, error) {
+	if id == "" {
+		return &streamNodeId{}, nil
+	}
+
 	split := strings.Split(id, "-")
 	snId := &streamNodeId{}
 
@@ -127,33 +130,34 @@ func parseStreamId(id string) (*streamNodeId, error) {
 }
 
 func resolveStreamID(id string, lastId string) (string, error) {
-	if lastId == "" {
-		return id, nil
-	}
-
 	now := time.Now().UnixMilli()
 
-	snId, err := parseStreamId(id)
+	snId, err := parseStreamID(id)
 	if err != nil {
 		return "", err
 	}
 
-	lastSnId, err := parseStreamId(lastId)
+	lastSnId, err := parseStreamID(lastId)
 	if err != nil {
 		return "", err
+	}
+
+	// This is to cover the case where there isn't a lastID
+	// so that the rest of the calculation can still work.
+	if lastSnId.timestamp == nil {
+		ts := int64(0)
+		seq := int64(-1)
+		lastSnId.timestamp = &ts
+		lastSnId.seq = &seq
 	}
 
 	// Full * Scenario
 	if snId.timestamp == nil {
 		if now > *lastSnId.timestamp {
-			return fmt.Sprintf("%d-%d%d", now, 0, 0), nil
+			return fmt.Sprintf("%d-%d", now, 0), nil
 		}
 
-		if *lastSnId.seq >= 9 {
-			return fmt.Sprintf("%d-%d", *lastSnId.timestamp, *lastSnId.seq+1), nil
-		} else {
-			return fmt.Sprintf("%d-%d%d", *lastSnId.timestamp, 0, *lastSnId.seq+1), nil
-		}
+		return fmt.Sprintf("%d-%d", *lastSnId.timestamp, *lastSnId.seq+1), nil
 	}
 
 	if snId.timestamp != nil && *snId.timestamp < *lastSnId.timestamp {
@@ -162,23 +166,26 @@ func resolveStreamID(id string, lastId string) (string, error) {
 
 	// Partial * Scenario
 	if snId.seq == nil {
-		if *lastSnId.seq >= 9 {
+		if *snId.timestamp > *lastSnId.timestamp {
+			return fmt.Sprintf("%d-%d", *snId.timestamp, 0), nil
+		}
+
+		if *snId.timestamp == *lastSnId.timestamp {
 			return fmt.Sprintf("%d-%d", *snId.timestamp, *lastSnId.seq+1), nil
-		} else {
-			return fmt.Sprintf("%d-%d%d", *snId.timestamp, 0, *lastSnId.seq+1), nil
 		}
 	}
 
 	// Explicit Scenario
-	if snId.seq != nil && *snId.seq <= *lastSnId.seq {
+	if *snId.timestamp == *lastSnId.timestamp && snId.seq != nil && *snId.seq <= *lastSnId.seq {
 		return "", fmt.Errorf("provided ID sequence for stream is older than current stream ID sequence")
 	}
 
-	if *snId.seq >= 9 {
-		return fmt.Sprintf("%d-%d", *snId.timestamp, *snId.seq+1), nil
-	} else {
-		return fmt.Sprintf("%d-%d%d", *snId.timestamp, 0, *snId.seq+1), nil
+	// Redis does not support ID of `0-0`
+	if *snId.timestamp == 0 && *snId.seq == 0 {
+		return "", fmt.Errorf("invalid ID")
 	}
+
+	return fmt.Sprintf("%d-%d", *snId.timestamp, *snId.seq), nil
 }
 
 func (s *Stream) Get(id string) (any, bool) {
