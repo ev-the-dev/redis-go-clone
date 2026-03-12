@@ -79,6 +79,35 @@ func NewStream(id string, fields []*Record) (*Stream, error) {
 	}, nil
 }
 
+func (s *Stream) Get(id string) (any, bool) {
+	node := s.Root
+	for len(id) > 0 {
+		child, _ := node.findChild(id[0])
+		if child == nil {
+			return nil, false
+		}
+
+		shared := child.commonPrefixLen(id)
+		if shared != len(child.Prefix) {
+			return nil, false
+		}
+
+		id = id[shared:]
+		node = child
+	}
+
+	return node.Value, node.IsLeaf
+}
+
+func (s *Stream) Insert(id string, fields []*Record) error {
+	/* TODO:
+	*		1. Create StreamEntry from `fields` and `id`
+	*		2. append entry as child StreamNode at prefix with StreamEntry containing full ID
+	 */
+
+	return nil
+}
+
 type streamNodeId struct {
 	timestamp *int64
 	seq       *int64
@@ -186,35 +215,6 @@ func resolveStreamID(id string, lastId string) (string, error) {
 	}
 
 	return fmt.Sprintf("%d-%d", *snId.timestamp, *snId.seq), nil
-}
-
-func (s *Stream) Get(id string) (any, bool) {
-	node := s.Root
-	for len(id) > 0 {
-		child, _ := node.findChild(id[0])
-		if child == nil {
-			return nil, false
-		}
-
-		shared := child.commonPrefixLen(id)
-		if shared != len(child.Prefix) {
-			return nil, false
-		}
-
-		id = id[shared:]
-		node = child
-	}
-
-	return node.Value, node.IsLeaf
-}
-
-func (s *Stream) Insert(id string, fields []string) error {
-	/* TODO:
-	*		1. Create StreamEntry from `fields` and `id`
-	*		2. append entry as child StreamNode at prefix with StreamEntry containing full ID
-	 */
-
-	return nil
 }
 
 type StreamEntry struct {

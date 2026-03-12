@@ -704,8 +704,7 @@ func (s *Server) handleXaddCommand(conn net.Conn, msg *resp.Message) {
 		return
 	}
 
-	recStream := record.Streams
-	// recStream.Insert(id, fields)
+	// record.Streams.Insert(id, fields)
 	/* TODO:
 	*		1. Parse ID and Fields from `idMsg` and `fieldMsgs`
 	*		2. Implement Insert()
