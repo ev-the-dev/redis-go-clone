@@ -222,6 +222,9 @@ func readDatabases(r *bufio.Reader, eCh chan<- *Entry) error {
 
 		// 3d. Read ValueType Value
 		pL, err = parseLengthEncoded(r, entry.ValType)
+		// TODO: Improve parseData to accept pointer of entry
+		// and then assign concrete values in the struct akin to
+		// store.Record and resp.Message
 		pD, err := parseData(r, pL)
 		if err != nil {
 			return fmt.Errorf("%s %w", ErrReadDatabase, err)

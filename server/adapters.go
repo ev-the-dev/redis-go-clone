@@ -11,66 +11,125 @@ import (
 )
 
 func fromRDB(e *rdb.Entry) (*store.Record, error) {
-	var rT resp.RESPType
+	sR := &store.Record{
+		ExpiresAt: e.Expire,
+	}
 
 	switch e.ValType {
 	case rdb.StringEncoded:
-		rT = resp.BulkString
+		sR.Type = store.StringType
+		sR.String = e.Val.(string)
 	case rdb.ListEncoded:
-		rT = resp.Array
+		list, err := fromRDPArrayToStoreArray(e)
+		if err != nil {
+			return nil, fmt.Errorf("%s from rdb: case list: %w", ErrAdaptPrefix, err)
+		}
+		sR.Type = store.ArrayType
+		sR.Array = list
 	case rdb.SetEncoded, rdb.SortedSetEncoded:
-		rT = resp.Sets
+		set, err := fromRDPArrayToStoreArray(e)
+		if err != nil {
+			return nil, fmt.Errorf("%s from rdb: case set: %w", ErrAdaptPrefix, err)
+		}
+		sR.Type = store.SetType
+		sR.Array = set
 	case rdb.HashEncoded:
-		rT = resp.Maps
+		sM, err := fromRDBMapToStoreMap(e)
+		if err != nil {
+			return nil, fmt.Errorf("%s from rdb: case hash map: %w", ErrAdaptPrefix, err)
+		}
+		sR.Type = store.MapType
+		sR.Map = sM
 	default:
 		return nil, fmt.Errorf("%s unsupported rdb type (%s) for entry: %+v", ErrAdaptPrefix, e.ValType.String(), e)
 	}
 
-	// NOTE: If need be we could also return the Key here
-	return &store.Record{
-		ExpiresAt: e.Expire,
-		Type:      rT,
-		Value:     e.Val,
-	}, nil
+	return sR, nil
+}
+
+func fromRDPArrayToStoreArray(e *rdb.Entry) ([]*store.Record, error) {
+	if e.ValType != rdb.ListEncoded && e.ValType != rdb.SetEncoded && e.ValType != rdb.SortedSetEncoded {
+		return nil, fmt.Errorf("%s trying to adapt RDB (Array|Set) but got (%s)", ErrAdaptPrefix, e.ValType.String())
+	}
+
+	storeArr := make([]*store.Record, len(e.Val.([]*rdb.Entry)))
+	for i, v := range e.Val.([]*rdb.Entry) {
+		sR, err := fromRDB(v)
+		if err != nil {
+			return nil, fmt.Errorf("%s from rdb: array: %w", ErrAdaptPrefix, err)
+		}
+
+		storeArr[i] = sR
+	}
+
+	return storeArr, nil
+}
+
+func fromRDBMapToStoreMap(e *rdb.Entry) (map[string]*store.Record, error) {
+	if e.ValType != rdb.HashEncoded {
+		return nil, fmt.Errorf("%s trying to adapt from RDB (Map) but got (%s)", ErrAdaptPrefix, e.ValType.String())
+	}
+
+	sM := make(map[string]*store.Record)
+	for k, v := range e.Val.(map[string]*rdb.Entry) {
+		storeVal, err := fromRDB(v)
+		if err != nil {
+			return nil, fmt.Errorf("%s from rdb: map value: %w", ErrAdaptPrefix, err)
+		}
+
+		sM[k] = storeVal
+	}
+
+	return sM, nil
 }
 
 // TODO: Think about removing `expiry` from this as there are tons of cases
 // where we'd use this but the Message type doesn't warrant an expiration.
 // Instead opt for a method on `*store.Record#WithExpiry`.
 func fromRESP(m *resp.Message, expiry time.Time) (*store.Record, error) {
-	var v any
+	sR := &store.Record{
+		ExpiresAt: expiry,
+	}
 
 	switch m.Type {
 	// TODO: Have to revisit how resp Sets behave and adapt accordingly
-	case resp.Array, resp.Sets:
+	case resp.Array:
 		rS, err := fromRESPArrayToStoreArray(m, expiry)
 		if err != nil {
 			return nil, fmt.Errorf("%s from resp: case array: %w", ErrAdaptPrefix, err)
 		}
-		v = rS
+		sR.Type = store.ArrayType
+		sR.Array = rS
 	case resp.Booleans:
-		v = m.Boolean
+		sR.Type = store.BooleanType
+		sR.Boolean = m.Boolean
 	case resp.BulkString, resp.SimpleString:
-		v = m.String
+		sR.Type = store.StringType
+		sR.String = m.String
 	case resp.Integer:
-		v = m.Integer
+		sR.Type = store.IntegerType
+		sR.Integer = m.Integer
 	case resp.Maps:
 		sM, err := fromRESPMapToStoreMap(m, expiry)
 		if err != nil {
 			return nil, fmt.Errorf("%s from resp: case map: %w", ErrAdaptPrefix, err)
 		}
-		v = sM
+		sR.Type = store.MapType
+		sR.Map = sM
 	case resp.Nulls:
-		v = nil
+		sR.Type = store.NilType
+	case resp.Sets:
+		rS, err := fromRESPArrayToStoreArray(m, expiry)
+		if err != nil {
+			return nil, fmt.Errorf("%s from resp: case set: %w", ErrAdaptPrefix, err)
+		}
+		sR.Type = store.SetType
+		sR.Array = rS
 	default:
 		return nil, fmt.Errorf("%s unsupported resp type (%s) for message: %+v", ErrAdaptPrefix, m.Type.String(), m)
 	}
 
-	return &store.Record{
-		ExpiresAt: expiry,
-		Type:      m.Type,
-		Value:     v,
-	}, nil
+	return sR, nil
 }
 
 func fromRESPArrayToStoreArray(m *resp.Message, expiry time.Time) ([]*store.Record, error) {
@@ -79,13 +138,13 @@ func fromRESPArrayToStoreArray(m *resp.Message, expiry time.Time) ([]*store.Reco
 	}
 
 	rS := make([]*store.Record, len(m.Array))
-	for _, v := range m.Array {
+	for i, v := range m.Array {
 		sR, err := fromRESP(v, expiry)
 		if err != nil {
 			return nil, fmt.Errorf("%s from resp: array: %w", ErrAdaptPrefix, err)
 		}
 
-		rS = append(rS, sR)
+		rS[i] = sR
 	}
 
 	return rS, nil
@@ -148,8 +207,8 @@ func toBulkRESPString(r []*store.Record) ([]string, error) {
 func toRESPString(r *store.Record) (string, error) {
 	var b strings.Builder
 	switch r.Type {
-	case resp.Array, resp.Sets:
-		arrVal := r.Value.([]*store.Record)
+	case store.ArrayType, store.SetType:
+		arrVal := r.Array
 		for _, v := range arrVal {
 			nestedValue, err := toRESPString(v)
 			if err != nil {
@@ -158,21 +217,19 @@ func toRESPString(r *store.Record) (string, error) {
 			b.WriteString(nestedValue)
 		}
 		return resp.EncodeArray(len(arrVal), b.String()), nil
-	case resp.Booleans:
-		b.WriteString(resp.EncodeBoolean(r.Value.(bool)))
-	case resp.BulkString:
-		b.WriteString(resp.EncodeBulkString(r.Value.(string)))
-	case resp.SimpleString:
-		b.WriteString(resp.EncodeSimpleString(r.Value.(string)))
-	case resp.Integer:
-		b.WriteString(resp.EncodeInteger(r.Value.(int)))
-	case resp.Maps:
-		s, err := toRESPStringFromStoreMap(b, r.Value.(map[string]*store.Record))
+	case store.BooleanType:
+		b.WriteString(resp.EncodeBoolean(r.Boolean))
+	case store.StringType:
+		b.WriteString(resp.EncodeBulkString(r.String))
+	case store.IntegerType:
+		b.WriteString(resp.EncodeInteger(r.Integer))
+	case store.MapType:
+		s, err := toRESPStringFromStoreMap(b, r.Map)
 		if err != nil {
 			return "", fmt.Errorf("%s to resp: %w", ErrAdaptPrefix, err)
 		}
 		b.WriteString(s)
-	case resp.Nulls:
+	case store.NilType:
 		b.WriteString(resp.EncodeNulls())
 	default:
 		return "", fmt.Errorf("%s unsupported type (%s) from store record: %+v", ErrAdaptPrefix, r.Type.String(), r)

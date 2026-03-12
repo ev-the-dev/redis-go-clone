@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+// TODO: Refactor this to contain explicit fields for the different types
+// i.e. like store.Record and resp.Message
 type Entry struct {
 	Expire  time.Time
 	Key     string
